@@ -7,7 +7,7 @@ formats output for each channel.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
@@ -16,7 +16,7 @@ from outheis.core.message import Message
 # SYSTEM PROMPT
 # =============================================================================
 
-RELAY_SYSTEM_PROMPT = """You are the Relay agent (ou) in the outheis system.
+RELAY_SYSTEM_PROMPT = """You are ou, the Relay agent in the outheis system.
 
 Your responsibility: All communication between users and the system.
 
@@ -24,9 +24,10 @@ You are the only agent that speaks directly to users. Other agents speak through
 
 Tasks:
 - Receive user messages from any channel (Signal, CLI, API)
-- Route requests to appropriate agents or handle simple ones yourself
+- Handle general conversation directly
+- Delegate vault/note queries to the Data agent (zeno)
 - Compose responses from agent outputs
-- Adapt formatting to the channel (emoji for Signal, ANSI for CLI, JSON for API)
+- Adapt formatting to the channel
 
 Style:
 - Match the user's register (formal if they're formal, casual if they're casual)
@@ -40,12 +41,23 @@ Core principles:
 - Be concise
 - Never fabricate information
 
-You do NOT:
-- Access the vault directly
-- Execute external actions
-- Make decisions about priorities
-- Learn user patterns (that's Pattern's job)
+When to delegate to Data agent:
+- Questions about vault contents, notes, documents
+- "Find", "search", "what do I have about..."
+- Requests for information that might be in the user's notes
+
+You handle directly:
+- General conversation
+- Questions about the system
+- Simple tasks that don't need vault access
 """
+
+# Keywords that suggest vault queries
+VAULT_KEYWORDS = [
+    "vault", "note", "notes", "document", "find", "search",
+    "what do i have", "my files", "my notes", "look up",
+    "in my", "did i write", "where is", "show me",
+]
 
 
 # =============================================================================
@@ -57,14 +69,38 @@ class RelayAgent(BaseAgent):
     """
     Relay agent handles all user communication.
 
-    For MVP: handles everything directly via LLM.
-    For production: delegates to specialized agents.
+    Delegates vault queries to Data agent.
+    Handles general conversation directly.
     """
 
     name: str = "relay"
+    _data_agent: any = field(default=None, repr=False)
 
     def get_system_prompt(self) -> str:
         return RELAY_SYSTEM_PROMPT
+
+    @property
+    def data_agent(self):
+        """Lazy load Data agent for delegation."""
+        if self._data_agent is None:
+            from outheis.agents.data import create_data_agent
+            self._data_agent = create_data_agent()
+        return self._data_agent
+
+    def _should_delegate_to_data(self, text: str) -> bool:
+        """Check if query should go to Data agent."""
+        text_lower = text.lower()
+        
+        # Explicit mention
+        if "@zeno" in text_lower:
+            return True
+        
+        # Keyword matching
+        for keyword in VAULT_KEYWORDS:
+            if keyword in text_lower:
+                return True
+        
+        return False
 
     def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message."""
@@ -74,11 +110,13 @@ class RelayAgent(BaseAgent):
         if not text:
             return None
 
-        # Get conversation context
-        context = self.get_conversation_context(msg.conversation_id)
-
-        # Generate response via LLM
-        response_text = self._generate_response(text, context, msg)
+        # Check for delegation
+        if self._should_delegate_to_data(text):
+            response_text = self._handle_with_data_agent(text, msg)
+        else:
+            # Handle directly
+            context = self.get_conversation_context(msg.conversation_id)
+            response_text = self._generate_response(text, context, msg)
 
         # Send response to transport
         return self.respond(
@@ -87,6 +125,15 @@ class RelayAgent(BaseAgent):
             conversation_id=msg.conversation_id,
             reply_to=msg.id,
         )
+
+    def _handle_with_data_agent(self, text: str, msg: Message) -> str:
+        """Delegate to Data agent and format response."""
+        try:
+            # Get answer from Data agent
+            answer = self.data_agent.handle_direct(text)
+            return answer
+        except Exception as e:
+            return f"I tried to search your vault but encountered an error: {e}"
 
     def _generate_response(
         self,

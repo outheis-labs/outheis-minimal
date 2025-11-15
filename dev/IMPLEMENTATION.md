@@ -6,11 +6,11 @@ Work-in-progress tracking. Completed items are removed.
 
 ## Open Tasks
 
-### Phase 1: Data Agent
+### Phase 1: Data Agent — ✓ COMPLETE
 
-- [ ] Implement vault search in Data agent
-- [ ] Build search index (`index.jsonl`)
-- [ ] Relay delegates vault queries to Data
+- [x] Implement vault search in Data agent
+- [x] Build search index (`index.jsonl`)
+- [x] Relay delegates vault queries to Data
 
 ### Phase 2: Agenda & Action
 
