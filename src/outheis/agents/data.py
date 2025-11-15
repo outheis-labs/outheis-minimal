@@ -147,7 +147,7 @@ class DataAgent(BaseAgent):
     
     def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message with LLM."""
-        query = msg.content
+        query = msg.payload.get("text", "") or msg.payload.get("query", "")
         if not query:
             return self.respond(
                 to=msg.from_agent or "relay",

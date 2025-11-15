@@ -90,3 +90,6 @@ disallow_untyped_defs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --cov=outheis --cov-report=term-missing"
+markers = [
+    "integration: marks tests as integration tests (require API key)",
+]

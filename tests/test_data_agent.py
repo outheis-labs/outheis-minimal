@@ -125,10 +125,16 @@ class TestDataAgentLLM:
         assert "$50,000" in answer or "50,000" in answer or "fifty thousand" in answer.lower()
     
     def test_handle_message(self, temp_vault, mock_config):
+        from uuid import uuid4
+        
         agent = create_data_agent()
         
         msg = Message(
-            content="Tell me about Project Alpha",
+            id=str(uuid4()),
+            conversation_id=str(uuid4()),
+            to="data",
+            type="request",
+            payload={"text": "Tell me about Project Alpha"},
             from_agent="relay",
         )
         
