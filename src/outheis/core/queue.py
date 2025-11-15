@@ -72,17 +72,26 @@ def recover_pending(queue_path: Path) -> int:
     Recover pending messages to queue.
     
     Called by Dispatcher on startup.
+    Checks for duplicates before appending.
     Returns count of recovered messages.
     """
     pending_dir = get_pending_dir()
     if not pending_dir.exists():
         return 0
     
+    # Get recent IDs to check for duplicates
+    existing_ids = set(read_last_n_ids(queue_path, 100))
+    
     count = 0
     for pending_path in sorted(pending_dir.glob("*.json")):
         try:
             data = json.loads(pending_path.read_text(encoding="utf-8"))
             msg = Message.from_dict(data["msg"])
+            
+            # Skip if already in queue (duplicate)
+            if msg.id in existing_ids:
+                delete_pending(pending_path)
+                continue
             
             # Append with lock
             line = write_message(msg.to_dict())
@@ -100,6 +109,27 @@ def recover_pending(queue_path: Path) -> int:
             continue
     
     return count
+
+
+def read_last_n_ids(path: Path, n: int) -> list[str]:
+    """Read the last N message IDs from the queue."""
+    if not path.exists():
+        return []
+    
+    ids = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+                if "id" in d:
+                    ids.append(d["id"])
+            except Exception:
+                continue
+    
+    return ids[-n:] if len(ids) > n else ids
 
 
 # =============================================================================

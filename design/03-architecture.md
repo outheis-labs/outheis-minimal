@@ -199,6 +199,17 @@ Within each priority class: FIFO.
 - Client disconnect → automatic release, cleanup
 - Priorities are architectural, not configurable
 
+#### File Locking
+
+For files other than `messages.jsonl`, simple `flock` is used:
+
+| File | Writers | Lock |
+|------|---------|------|
+| `messages.jsonl` | Transport, all Agents | Socket (prioritized) |
+| `session_notes.jsonl` | All Agents | `flock` |
+| `config.json` | CLI, Web UI | `flock` |
+| Vault files | Data Agent | `flock` |
+
 #### Write-Ahead Logging
 
 All queue writes use write-ahead for crash safety:
@@ -210,11 +221,15 @@ All queue writes use write-ahead for crash safety:
 ```
 
 **Write sequence:**
-1. Write message to `.pending/{id}.json`
+1. Write message to `.pending/{msg_id}.json`
 2. `flock` + append to `messages.jsonl`
 3. Delete from `.pending/`
 
-**Recovery:** Dispatcher scans `.pending/` on startup, appends any found messages.
+**Recovery (Dispatcher startup):**
+1. Scan `.pending/`
+2. Check for duplicates (last 100 IDs in queue)
+3. Append missing messages, skip duplicates
+4. Delete recovered pending files
 
 If a process dies while waiting for the lock, the message survives in `.pending/` and is recovered when Dispatcher (re)starts.
 
