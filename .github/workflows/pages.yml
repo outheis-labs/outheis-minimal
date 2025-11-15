@@ -30,6 +30,11 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Write logo from secret
+        if: ${{ secrets.OUTHEIS_LOGO != '' }}
+        run: echo '${{ secrets.OUTHEIS_LOGO }}' | base64 -d > web/assets/logo.svg
+        shell: bash
+
       - name: Copy design docs to web
         run: |
           mkdir -p web/design
