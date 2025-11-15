@@ -24,14 +24,15 @@ Instead of reinventing, outheis applies proven concepts from OS research—messa
 
 ## Documentation
 
-See the [design/](design/) directory for detailed design documents:
+**[→ outheis-labs.github.io/outheis-minimal](https://outheis-labs.github.io/outheis-minimal/)**
+
+Design documents in [design/](design/):
 
 - [Why OS Principles Apply](design/01-why-os-principles.md)
 - [Systems Survey](design/02-systems-survey.md)
 - [Architecture](design/03-architecture.md)
 - [Data Formats](design/04-data-formats.md)
 - [Related Work](design/05-related-work.md)
-- [Agent Prompts](design/06-agent-prompts.md)
 - [Agent Prompts](design/06-agent-prompts.md)
 
 ## Status
