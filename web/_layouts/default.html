@@ -52,6 +52,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      align-self: flex-start;
     }
     
     .sidebar-logo {
@@ -96,20 +97,19 @@
     }
     
     .sidebar-nav .nav-external {
-      font-size: 13px;
+      font-size: 15px;
       font-weight: 600;
       color: var(--color-text-faint);
-      margin-top: 0.5rem;
     }
     
     .content {
       flex: 1;
       min-width: 0;
       max-width: 600px;
-      padding-top: 0;
+      align-self: flex-start;
     }
     
-    .content > h1:first-child {
+    .content > *:first-child {
       margin-top: 0;
     }
     
