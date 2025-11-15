@@ -166,6 +166,7 @@ class Dispatcher:
     def run(self) -> None:
         """Run the dispatcher daemon."""
         from outheis.dispatcher.lock import LockManager
+        from outheis.core.queue import recover_pending
         
         init_directories()
         write_pid()
@@ -173,6 +174,11 @@ class Dispatcher:
         
         print(f"Dispatcher started (PID {os.getpid()})")
         print(f"Watching: {self.queue_path}")
+        
+        # Recover any pending messages from crashed processes
+        recovered = recover_pending(self.queue_path)
+        if recovered:
+            print(f"Recovered {recovered} pending message(s)")
         
         # Start lock manager
         lock_manager = LockManager()

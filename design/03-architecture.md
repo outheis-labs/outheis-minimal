@@ -199,6 +199,25 @@ Within each priority class: FIFO.
 - Client disconnect → automatic release, cleanup
 - Priorities are architectural, not configurable
 
+#### Write-Ahead Logging
+
+All queue writes use write-ahead for crash safety:
+
+```
+~/.outheis/human/.pending/
+├── msg_abc123.json
+└── msg_def456.json
+```
+
+**Write sequence:**
+1. Write message to `.pending/{id}.json`
+2. `flock` + append to `messages.jsonl`
+3. Delete from `.pending/`
+
+**Recovery:** Dispatcher scans `.pending/` on startup, appends any found messages.
+
+If a process dies while waiting for the lock, the message survives in `.pending/` and is recovered when Dispatcher (re)starts.
+
 ### Web UI (localhost-only)
 
 Simple web interface for configuration. No chat functionality.
