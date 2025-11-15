@@ -399,14 +399,54 @@ Pattern agent writes observations:
 
 ```json
 {
-  "id": "insight_001",
-  "type": "pattern",
-  "content": "User frequently asks about project deadlines on Monday mornings",
-  "confidence": 0.85,
-  "evidence": ["conv_abc", "conv_def", "conv_ghi"],
-  "created_at": "2025-03-27T02:00:00Z"
+  "v": 1,
+  "id": "ins_20251115_001",
+  "type": "strategy",
+  "domain": "communication",
+  "insight": "When formatting for Signal, use emoji headers instead of markdown",
+  "confidence": 0.8,
+  "evidence_count": 5,
+  "source_sessions": ["sess_001", "sess_003", "sess_007"],
+  "created_at": "2025-11-15T04:12:00Z"
 }
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | `strategy`, `preference`, `pattern`, `capability` |
+| `domain` | string | Area of applicability |
+| `confidence` | float | 0.0–1.0, increases with evidence |
+| `evidence_count` | int | Number of supporting instances |
+| `source_sessions` | array | Traceability to conversations |
+
+### session_notes.jsonl
+
+Temporary learning notes, reviewed by Pattern agent during scheduled runs:
+
+```json
+{
+  "v": 1,
+  "id": "note_20251115_001",
+  "session_id": "sess_007",
+  "agent": "relay",
+  "problem": "User asked for table formatting in Signal",
+  "solution": "Replace markdown tables with emoji-separated rows",
+  "context": {
+    "channel": "signal",
+    "user_feedback": "positive"
+  },
+  "created_at": "2025-11-15T10:30:00Z",
+  "reviewed": false
+}
+```
+
+Session notes are:
+- Written by any agent when user helps solve a problem
+- Read by Pattern agent during nightly run
+- Marked `reviewed: true` after processing
+- Periodically cleaned (reviewed notes older than 30 days)
+
+Pattern agent decides: generalize to insight, or leave as specific instance in archive.
 
 ### Agenda Rules
 

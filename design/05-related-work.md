@@ -194,4 +194,4 @@ The literature identifies several open problems relevant to outheis:
 
 The application of OS principles to AI agent architecture is an active research area. Existing work focuses primarily on performance optimization for enterprise multi-agent systems. outheis contributes a complementary perspective: privacy-first personal assistant architecture with plaintext data philosophy and emphasis on user agency.
 
-The theoretical foundation linking prospective information architecture to agent design (see: *Die Temporalisierung von Ordnung*) appears to be novel and not addressed in current literature.
+The theoretical foundation linking prospective information architecture to agent design (see: [Temporalization of Order](https://github.com/outheis-labs/research-base/blob/main/temporalization-of-order/temporalization-of-order.md)) appears to be novel and not addressed in current literature.

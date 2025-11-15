@@ -472,7 +472,7 @@ Agent fails
     ▼
 Dispatcher catches
     │
-    ├──► Log to errors.jsonl
+    ├──► Log error message to messages.jsonl
     │
     └──► Write {to: "relay", type: "error", ...} to queue
             │
