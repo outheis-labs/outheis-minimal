@@ -21,6 +21,13 @@ Work-in-progress tracking. Completed items are removed.
 ### Phase 3: Pattern & Polish
 
 - [ ] Pattern agent: Session note review, insight extraction
+- [ ] **Dynamic tag extraction with voting**
+  - Extract candidate tags from vault content (YAKE/spaCy, local, fast)
+  - Voting mechanism: tags gain weight through co-occurrence across documents
+  - Prune single-instance/low-relevance tags automatically
+  - Periodically re-evaluate as vault content changes
+  - Result: bounded set of high-semantic-overlap tags
+  - Store in `tag-weights.jsonl`, expose via Data agent
 - [ ] Tag harmonization
 - [ ] Signal transport
 - [ ] Web UI (localhost)
