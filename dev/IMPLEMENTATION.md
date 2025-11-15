@@ -28,6 +28,12 @@ Work-in-progress tracking. Completed items are removed.
   - Periodically re-evaluate as vault content changes
   - Result: bounded set of high-semantic-overlap tags
   - Store in `tag-weights.jsonl`, expose via Data agent
+- [ ] **Housekeeping tasks** (Pattern agent, scheduled)
+  - File rotation: messages.jsonl, session_notes.jsonl → archive/
+  - Index maintenance: rebuild/optimize search index
+  - Trigger schema migrations if pending
+  - Cleanup: .pending/, stale locks, orphaned files
+  - Configurable retention policies
 - [x] **Scheduler in dispatcher** (no cron/launchd needed)
   - Dispatcher wakes Pattern agent at configured time
   - Platform-independent, runs wherever dispatcher runs
