@@ -43,47 +43,83 @@ def init() -> None:
 
 
 @app.command()
-def send(
-    message: str = typer.Argument(..., help="Message to send"),
+def start(
+    foreground: bool = typer.Option(
+        False,
+        "--foreground",
+        "-f",
+        help="Run in foreground (don't daemonize)",
+    ),
 ) -> None:
-    """Send a message and wait for response."""
+    """Start the outheis dispatcher daemon."""
     from outheis.core.config import init_directories
-    from outheis.transport.cli import CLITransport
-    from outheis.agents.relay import create_relay_agent
-    from outheis.core.queue import read_last_n
-    from outheis.core.config import get_messages_path
+    from outheis.dispatcher.daemon import start_daemon
     
     init_directories()
+    
+    if foreground:
+        typer.echo("Starting dispatcher in foreground (Ctrl+C to stop)...")
+    
+    success = start_daemon(foreground=foreground)
+    if not success and not foreground:
+        raise typer.Exit(1)
+
+
+@app.command()
+def stop() -> None:
+    """Stop the outheis dispatcher daemon."""
+    from outheis.dispatcher.daemon import stop_daemon
+    
+    success = stop_daemon()
+    if not success:
+        raise typer.Exit(1)
+
+
+@app.command()
+def send(
+    message: str = typer.Argument(..., help="Message to send"),
+    timeout: float = typer.Option(30.0, "--timeout", "-t", help="Response timeout in seconds"),
+) -> None:
+    """Send a message and wait for response."""
+    from outheis.dispatcher.daemon import daemon_status
+    from outheis.transport.cli import CLITransport
+    
+    # Check if daemon is running
+    status = daemon_status()
+    if not status["running"]:
+        typer.echo("Dispatcher not running. Start it with: outheis start")
+        raise typer.Exit(1)
     
     transport = CLITransport()
     msg = transport.send(message)
     
     typer.echo(f"Sent: {msg.id[:8]}...")
     
-    # For MVP: handle directly with relay agent
-    relay = create_relay_agent()
-    response = relay.handle(msg)
+    # Wait for response from dispatcher
+    response = transport.wait_for_response(msg.id, timeout=timeout)
     
     if response:
         typer.echo(f"\n{response.payload.get('text', '')}")
     else:
-        typer.echo("[no response]")
+        typer.echo("[no response within timeout]")
 
 
 @app.command()
 def chat() -> None:
-    """Start interactive chat session."""
-    from outheis.core.config import init_directories
+    """Start interactive chat session (requires running dispatcher)."""
+    from outheis.dispatcher.daemon import daemon_status
     from outheis.transport.cli import CLITransport
-    from outheis.agents.relay import create_relay_agent
     
-    init_directories()
+    # Check if daemon is running
+    status = daemon_status()
+    if not status["running"]:
+        typer.echo("Dispatcher not running. Start it with: outheis start")
+        raise typer.Exit(1)
     
     typer.echo("outheis CLI (type 'exit' to quit)")
     typer.echo("-" * 40)
     
     transport = CLITransport()
-    relay = create_relay_agent()
     
     while True:
         try:
@@ -96,7 +132,7 @@ def chat() -> None:
                 break
             
             msg = transport.send(text)
-            response = relay.handle(msg)
+            response = transport.wait_for_response(msg.id, timeout=30.0)
             
             if response:
                 typer.echo(f"\n{response.payload.get('text', '')}")
@@ -118,15 +154,24 @@ def status() -> None:
     from outheis.core.config import (
         load_config,
         get_messages_path,
-        get_human_dir,
     )
     from outheis.core.queue import message_count, queue_size
+    from outheis.dispatcher.daemon import daemon_status
     
     config = load_config()
     queue_path = get_messages_path()
+    dstatus = daemon_status()
     
     typer.echo("outheis status")
     typer.echo("-" * 40)
+    
+    # Daemon status
+    if dstatus["running"]:
+        typer.echo(f"Dispatcher: running (PID {dstatus['pid']})")
+    else:
+        typer.echo("Dispatcher: stopped")
+    
+    typer.echo()
     typer.echo(f"User: {config.user.name}")
     typer.echo(f"Language: {config.user.language}")
     typer.echo(f"Timezone: {config.user.timezone}")
