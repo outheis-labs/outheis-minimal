@@ -1,12 +1,8 @@
 ---
 title: Implementation
----
-
 # Implementation
 
 *Concrete strategies and patterns. For developers and CS students.*
-
----
 
 ## Lock Management
 
@@ -58,8 +54,6 @@ class LockManager:
         conn.send(b"GRANTED\n")
 ```
 
----
-
 ## Write-Ahead Logging
 
 Appending to `messages.jsonl` can fail mid-write (crash, power loss). Write-ahead logging ensures recovery.
@@ -89,8 +83,6 @@ def recover_pending(pending_dir: Path, queue_path: Path):
 ### Why Check Existing IDs?
 
 The crash might have occurred *after* the append but *before* the cleanup. Checking prevents duplicates.
-
----
 
 ## Schema Versioning
 
@@ -123,8 +115,6 @@ outheis migrate --scan    # Report versions found
 outheis migrate --apply   # Upgrade to latest (future)
 ```
 
----
-
 ## Router Design
 
 The dispatcher routes messages without LLM calls. Routing is deterministic.
@@ -156,8 +146,6 @@ The dispatcher routes messages without LLM calls. Routing is deterministic.
 - **Predictability** — users learn the routing rules
 
 The keyword approach is fast, cheap, and transparent. Users can explicitly invoke agents when needed.
-
----
 
 ## Daemon Architecture
 
@@ -195,8 +183,6 @@ if WATCHDOG_AVAILABLE:
 else:
     watcher = PollingWatcher(queue_path, callback, interval=1.0)
 ```
-
----
 
 ## Testing Strategy
 
@@ -243,8 +229,6 @@ jobs:
     run: pytest -m integration
 ```
 
----
-
 ## Future: Tag Extraction
 
 Planned for Phase 3:
@@ -256,6 +240,4 @@ Planned for Phase 3:
 
 Result: bounded set of tags with genuine semantic relevance.
 
----
 
-[← Back](../)

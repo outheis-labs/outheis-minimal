@@ -1,12 +1,8 @@
 ---
 title: Theory
----
-
 # Theory
 
 *OS principles applied to agent coordination.*
-
----
 
 ## The Coordination Problem
 
@@ -79,13 +75,9 @@ Benefits:
 
 This draws from database write-ahead logging and event sourcing.
 
----
-
 ## Further Reading
 
 - [Systems Survey](../design/02-systems-survey.md) — DragonFlyBSD, Erlang, OpenBSD, Plan 9
 - [Why OS Principles Apply](../design/01-why-os-principles.md)
 
----
 
-[← Back](../)

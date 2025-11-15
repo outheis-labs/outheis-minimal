@@ -1,12 +1,8 @@
 ---
 title: Philosophy
----
-
 # Philosophy
 
 *Why outheis exists.*
-
----
 
 ## The Problem
 
@@ -40,6 +36,4 @@ AI can be genuinely helpful: finding connections in your notes, managing complex
 
 outheis explores what AI assistance looks like when sovereignty is non-negotiable.
 
----
 
-[← Back](../)

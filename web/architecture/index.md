@@ -1,12 +1,8 @@
 ---
 title: Architecture
----
-
 # Architecture
 
 *How the pieces fit together.*
-
----
 
 ## Overview
 
@@ -104,13 +100,9 @@ Append-only. Versioned. Recoverable.
     └── rules/            # User-defined rules
 ```
 
----
-
 ## Further Reading
 
 - [Data Formats](../design/04-data-formats.md)
 - [Agent Prompts](../design/06-agent-prompts.md)
 
----
 
-[← Back](../)

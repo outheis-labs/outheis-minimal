@@ -1,12 +1,8 @@
 ---
 title: Guide
----
-
 # Guide
 
 *Getting started with outheis.*
-
----
 
 ## Requirements
 
@@ -94,8 +90,6 @@ Your vault is a directory of Markdown files:
 title: Project Alpha
 tags: [active, client-work]
 created: 2025-01-15
----
-
 # Project Alpha
 
 Status update...
@@ -164,6 +158,4 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 # Or add to ~/.bashrc / ~/.zshrc
 ```
 
----
 
-[← Back](../)

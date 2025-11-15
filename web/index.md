@@ -32,8 +32,3 @@ Dispatcher, agents, vault — how the pieces fit together. [Architecture →](ar
 Lock management, write-ahead logging, schema versioning. [Implementation →](implementation/)
 
 Installation, CLI, configuration — getting started. [Guide →](guide/)
-
----
-
-*Open source under AGPL-3.0 · [Code on GitHub](https://github.com/outheis-labs/outheis-minimal)*
-{: .footer}
