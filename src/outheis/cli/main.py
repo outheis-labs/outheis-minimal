@@ -237,5 +237,27 @@ def migrate(
         typer.echo("Records will be migrated on-the-fly when read.")
 
 
+@app.command()
+def pattern(
+    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Show what would be done"),
+) -> None:
+    """Run Pattern agent reflection (normally scheduled at 04:00)."""
+    from outheis.agents.pattern import create_pattern_agent
+    
+    typer.echo("Running Pattern agent...")
+    
+    agent = create_pattern_agent()
+    
+    if dry_run:
+        typer.echo("[dry-run] Would process session notes")
+        typer.echo("[dry-run] Would extract insights")
+        typer.echo("[dry-run] Would update tag weights")
+        return
+    
+    agent.run_scheduled()
+    
+    typer.echo("Done.")
+
+
 if __name__ == "__main__":
     app()
