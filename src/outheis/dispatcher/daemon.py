@@ -42,7 +42,8 @@ from outheis.agents import (
 
 def get_pid_path() -> Path:
     """Get path to PID file."""
-    return get_human_dir() / ".dispatcher.pid"
+    from outheis.core.config import get_outheis_dir
+    return get_outheis_dir() / ".dispatcher.pid"
 
 
 def write_pid() -> None:
