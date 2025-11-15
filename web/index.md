@@ -5,6 +5,7 @@ title: outheis
 # οὐθείς
 
 *Nobody — and everybody who refuses to be captured.*
+{: .lead}
 
 ---
 
@@ -16,28 +17,19 @@ Five agents coordinate through messages. Your knowledge stays in a local vault. 
 
 ---
 
-## Explore
+## Key topics
 
-[**Philosophy**](philosophy/) · Why sovereignty matters. The problem with captured cognition.
+Why sovereignty matters — the problem with captured cognition. [Philosophy →](philosophy/)
 
-[**Theory**](theory/) · OS principles applied to agents. Message passing, supervision, capabilities.
+OS principles applied to agents — message passing, supervision. [Theory →](theory/)
 
-[**Architecture**](architecture/) · Dispatcher, agents, vault, formats. How the pieces fit.
+Dispatcher, agents, vault — how the pieces fit together. [Architecture →](architecture/)
 
-[**Implementation**](implementation/) · Lock management, write-ahead logging, schema versioning. For developers.
+Lock management, write-ahead logging, schema versioning. [Implementation →](implementation/)
 
-[**Guide**](guide/) · Installation, CLI, configuration. Getting started.
-
----
-
-| Agent | Name | Role |
-|-------|------|------|
-| Relay | ou | Conversation partner |
-| Data | zeno | Vault search |
-| Agenda | cato | Time & tasks |
-| Action | hiro | External execution |
-| Pattern | rumi | Insight extraction |
+Installation, CLI, configuration — getting started. [Guide →](guide/)
 
 ---
 
-*Open source under AGPL-3.0 · [GitHub](https://github.com/outheis-labs/outheis-minimal)*
+*Open source under AGPL-3.0 · [Code on GitHub](https://github.com/outheis-labs/outheis-minimal)*
+{: .footer}
