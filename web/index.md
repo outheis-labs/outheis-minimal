@@ -8,75 +8,36 @@ title: outheis
 
 ---
 
-## The Name
+When Odysseus escapes the Cyclops, he calls himself οὐθείς — *nobody*. By not being pinned to a name, he remains free.
 
-When Odysseus escapes the Cyclops, he calls himself οὐθείς — *nobody*. It's a trick, but also a truth: by not being pinned to a name, he remains free.
+outheis is a personal AI assistant built on this principle: your conversations, your notes, your patterns of thought should serve *you* — not be captured, profiled, monetized.
 
-outheis carries this idea into how we work with AI. Your conversations, your notes, your patterns of thought — they shouldn't be captured, profiled, monetized. They should serve *you*.
+Five agents coordinate through messages. Your knowledge stays in a local vault. Nothing leaves without your intent.
 
 ---
 
-## What is outheis?
+## Explore
 
-A personal AI assistant that runs on your terms.
+[**Philosophy**](philosophy/) · Why sovereignty matters. The problem with captured cognition.
 
-Five agents, each with a role:
+[**Theory**](theory/) · OS principles applied to agents. Message passing, supervision, capabilities.
+
+[**Architecture**](architecture/) · Dispatcher, agents, vault, formats. How the pieces fit.
+
+[**Implementation**](implementation/) · Lock management, write-ahead logging, schema versioning. For developers.
+
+[**Guide**](guide/) · Installation, CLI, configuration. Getting started.
+
+---
 
 | Agent | Name | Role |
 |-------|------|------|
-| **Relay** | ou | Conversation partner, first contact |
-| **Data** | zeno | Searches your vault, finds connections |
-| **Agenda** | cato | Manages time, tasks, exchanges |
-| **Action** | hiro | Executes external actions |
-| **Pattern** | rumi | Observes, extracts insights over time |
-
-They coordinate through messages. Your knowledge stays in a local vault — Markdown files you control. Nothing leaves without your intent.
+| Relay | ou | Conversation partner |
+| Data | zeno | Vault search |
+| Agenda | cato | Time & tasks |
+| Action | hiro | External execution |
+| Pattern | rumi | Insight extraction |
 
 ---
 
-## Why OS Principles?
-
-The agents need to work together without conflict. This is a solved problem — operating systems have coordinated independent processes for decades.
-
-outheis borrows from DragonFlyBSD, Erlang, OpenBSD, Plan 9:
-
-| Principle | Meaning |
-|-----------|---------|
-| **Message Passing** | Agents communicate through messages, not shared state |
-| **Ownership** | Each agent is responsible for one domain |
-| **Append-Only Log** | Every message recorded, nothing silently lost |
-| **Supervision** | Failures are contained and recovered |
-| **Declared Capabilities** | No implicit access, everything explicit |
-
-The technical foundation serves a larger purpose: *sovereignty over your own cognitive infrastructure*.
-
----
-
-## The Vault
-
-Your knowledge lives in Markdown files with YAML frontmatter. Plain text, portable, version-controllable.
-
-```
-vault/
-├── Agenda/
-│   ├── Daily.md
-│   └── Inbox.md
-├── projects/
-│   └── current-work.md
-└── notes/
-    └── ideas.md
-```
-
-The Data agent indexes and searches. The Pattern agent observes what matters to you over time. Tags emerge through use — not assigned, but earned through co-occurrence.
-
----
-
-## Learn More
-
-- [Why OS Principles Apply](concept/01-why-os-principles.md)
-- [Systems Survey](concept/02-systems-survey.md)
-- [Architecture](concept/03-architecture.md)
-
----
-
-*outheis is open source under AGPL-3.0.*
+*Open source under AGPL-3.0 · [GitHub](https://github.com/outheis-labs/outheis-minimal)*
