@@ -34,6 +34,29 @@ Work-in-progress tracking. Completed items are removed.
 
 ---
 
+## Architecture Decisions
+
+### Dispatcher Scheduler
+
+The dispatcher includes a built-in scheduler for periodic tasks. This is more portable than relying on external schedulers (cron, launchd, systemd timers).
+
+**Implementation:**
+- Uses `select()` with timeout — no polling loop, no external dependencies
+- Wakeup pipe for signal handling
+- Timeout calculated from next scheduled task
+
+**Scheduled tasks:**
+- `pattern` (04:00): Run Pattern agent reflection
+- `index_rebuild` (04:30): Rebuild vault search indices  
+- `archive_rotation` (05:00): Rotate old messages to archive
+
+**Why not external scheduler?**
+- Different on every platform (cron, launchd, Task Scheduler)
+- Dispatcher already runs as daemon
+- `select()` timeout adds zero overhead when idle
+
+---
+
 ## Open Questions
 
 1. **Local LLM support?**
@@ -52,6 +75,7 @@ Moved to `docs/` — see implementation documentation there.
 
 - ✓ Core modules (schema, message, queue, config)
 - ✓ Dispatcher daemon with routing
+- ✓ Dispatcher scheduler (select-based, no polling)
 - ✓ Lock manager (socket + priority)
 - ✓ Write-ahead logging
 - ✓ CLI transport (init, start, stop, send, chat, status, pattern, migrate)

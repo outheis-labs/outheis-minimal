@@ -3,16 +3,22 @@ Dispatcher daemon.
 
 The central process that watches the message queue,
 routes messages to agents, and manages agent lifecycle.
+
+Includes built-in scheduler for periodic tasks (Pattern agent, housekeeping).
+Uses select() with timeout — no polling loop, no external dependencies.
 """
 
 from __future__ import annotations
 
 import os
+import select
 import signal
 import sys
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Callable
 
 from outheis.agents import (
     create_action_agent,
@@ -31,6 +37,81 @@ from outheis.core.message import Message
 from outheis.core.queue import append, read_from
 from outheis.dispatcher.router import get_dispatch_target
 from outheis.dispatcher.watcher import QueueWatcher
+
+
+# =============================================================================
+# SCHEDULER
+# =============================================================================
+
+@dataclass
+class ScheduledTask:
+    """A task scheduled to run at specific times."""
+    name: str
+    run: Callable[[], None]
+    hour: int  # 0-23
+    minute: int = 0
+    last_run: datetime | None = None
+    
+    def next_run(self, now: datetime) -> datetime:
+        """Calculate next run time."""
+        today_run = now.replace(hour=self.hour, minute=self.minute, second=0, microsecond=0)
+        if now >= today_run:
+            # Already passed today, schedule for tomorrow
+            return today_run + timedelta(days=1)
+        return today_run
+    
+    def seconds_until_next(self, now: datetime) -> float:
+        """Seconds until next scheduled run."""
+        return (self.next_run(now) - now).total_seconds()
+    
+    def should_run(self, now: datetime) -> bool:
+        """Check if task should run now."""
+        if self.last_run is None:
+            # Never run — check if we're at the scheduled time
+            return (now.hour == self.hour and now.minute == self.minute)
+        # Already ran today?
+        if self.last_run.date() == now.date():
+            return False
+        # Is it time?
+        return (now.hour == self.hour and now.minute >= self.minute)
+
+
+@dataclass
+class Scheduler:
+    """
+    Built-in scheduler for periodic tasks.
+    
+    No external dependencies. Integrates with select() timeout.
+    """
+    tasks: list[ScheduledTask] = field(default_factory=list)
+    
+    def add(self, name: str, run: Callable[[], None], hour: int, minute: int = 0) -> None:
+        """Add a scheduled task."""
+        self.tasks.append(ScheduledTask(name=name, run=run, hour=hour, minute=minute))
+    
+    def seconds_until_next(self) -> float:
+        """Seconds until next task needs to run."""
+        if not self.tasks:
+            return 3600.0  # No tasks, check again in an hour
+        
+        now = datetime.now()
+        return min(task.seconds_until_next(now) for task in self.tasks)
+    
+    def run_due(self) -> list[str]:
+        """Run all due tasks. Returns names of tasks run."""
+        now = datetime.now()
+        ran = []
+        for task in self.tasks:
+            if task.should_run(now):
+                try:
+                    task.run()
+                    task.last_run = now
+                    ran.append(task.name)
+                except Exception as e:
+                    # Log but don't crash
+                    print(f"Scheduled task {task.name} failed: {e}")
+        return ran
+
 
 # =============================================================================
 # PID FILE
@@ -78,25 +159,90 @@ class Dispatcher:
     The dispatcher daemon.
 
     Watches the message queue, routes messages to agents,
-    and manages responses.
+    manages responses, and runs scheduled tasks.
+    
+    Uses select() with timeout for efficient waiting:
+    - Wakes on file changes (inotify/kqueue via watcher)
+    - Wakes on scheduled task deadline
+    - No busy polling
     """
 
     config: Config = field(default_factory=load_config)
     queue_path: Path = field(default_factory=get_messages_path)
     last_processed_id: str | None = None
     running: bool = False
+    scheduler: Scheduler = field(default_factory=Scheduler)
 
     # Agents (loaded on demand)
     _agents: dict = field(default_factory=dict)
+    
+    # Pipe for wakeup signal
+    _wakeup_read: int | None = None
+    _wakeup_write: int | None = None
 
     def __post_init__(self):
         # Register signal handlers
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         signal.signal(signal.SIGINT, self._handle_shutdown)
+        
+        # Create wakeup pipe
+        self._wakeup_read, self._wakeup_write = os.pipe()
+        os.set_blocking(self._wakeup_read, False)
+        os.set_blocking(self._wakeup_write, False)
 
     def _handle_shutdown(self, signum, frame):
         """Handle shutdown signals."""
         self.running = False
+        # Wake up select()
+        if self._wakeup_write:
+            try:
+                os.write(self._wakeup_write, b'x')
+            except OSError:
+                pass
+
+    def _setup_scheduled_tasks(self) -> None:
+        """Configure scheduled tasks."""
+        # Pattern agent: default 04:00
+        # TODO: Read from config
+        self.scheduler.add(
+            name="pattern",
+            run=self._run_pattern_agent,
+            hour=4,
+            minute=0,
+        )
+        
+        # Index rebuild: 04:30
+        self.scheduler.add(
+            name="index_rebuild",
+            run=self._run_index_rebuild,
+            hour=4,
+            minute=30,
+        )
+        
+        # Archive rotation: 05:00
+        self.scheduler.add(
+            name="archive_rotation",
+            run=self._run_archive_rotation,
+            hour=5,
+            minute=0,
+        )
+
+    def _run_pattern_agent(self) -> None:
+        """Run Pattern agent scheduled reflection."""
+        agent = self.get_agent("pattern")
+        if agent:
+            agent.run_scheduled()
+
+    def _run_index_rebuild(self) -> None:
+        """Rebuild vault search indices."""
+        agent = self.get_agent("data")
+        if agent and hasattr(agent, 'rebuild_indices'):
+            agent.rebuild_indices()
+
+    def _run_archive_rotation(self) -> None:
+        """Rotate old messages to archive."""
+        # TODO: Implement archive rotation
+        pass
 
     def get_agent(self, name: str):
         """Get or create an agent instance."""
@@ -167,9 +313,13 @@ class Dispatcher:
         init_directories()
         write_pid()
         self.running = True
+        
+        # Set up scheduled tasks
+        self._setup_scheduled_tasks()
 
         print(f"Dispatcher started (PID {os.getpid()})")
         print(f"Watching: {self.queue_path}")
+        print(f"Scheduled tasks: {[t.name for t in self.scheduler.tasks]}")
 
         # Recover any pending messages from crashed processes
         recovered = recover_pending(self.queue_path)
@@ -193,10 +343,34 @@ class Dispatcher:
 
         try:
             while self.running:
-                time.sleep(0.1)
+                # Calculate timeout until next scheduled task
+                timeout = min(self.scheduler.seconds_until_next(), 60.0)
+                
+                # Wait for wakeup signal or timeout
+                ready, _, _ = select.select([self._wakeup_read], [], [], timeout)
+                
+                if ready:
+                    # Drain wakeup pipe
+                    try:
+                        os.read(self._wakeup_read, 1024)
+                    except OSError:
+                        pass
+                
+                # Run any due scheduled tasks
+                ran = self.scheduler.run_due()
+                if ran:
+                    print(f"Ran scheduled tasks: {ran}")
+                    
         finally:
             watcher.stop()
             lock_manager.stop()
+            
+            # Close wakeup pipe
+            if self._wakeup_read:
+                os.close(self._wakeup_read)
+            if self._wakeup_write:
+                os.close(self._wakeup_write)
+                
             remove_pid()
             print("Dispatcher stopped")
 
