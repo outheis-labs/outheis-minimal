@@ -31,6 +31,8 @@ See the [design/](design/) directory for detailed design documents:
 - [Architecture](design/03-architecture.md)
 - [Data Formats](design/04-data-formats.md)
 - [Related Work](design/05-related-work.md)
+- [Agent Prompts](design/06-agent-prompts.md)
+- [Agent Prompts](design/06-agent-prompts.md)
 
 ## Status
 

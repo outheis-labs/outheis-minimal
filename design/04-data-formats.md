@@ -523,6 +523,152 @@ All text files use UTF-8 encoding without BOM.
 
 ---
 
+## Schema Versioning
+
+### The Problem
+
+Data structures evolve. Messages, insights, and other formats will change over time. Without versioning:
+
+- Old data becomes unreadable after upgrades
+- Mixed versions in same file cause parsing errors
+- No migration path for existing data
+
+### Version Field
+
+Every record in outheis-managed JSONL files carries a version:
+
+```json
+{"v": 1, "id": "msg_001", "from": {"agent": "zeno"}, ...}
+{"v": 1, "id": "msg_002", "from": {"agent": "cato"}, ...}
+{"v": 2, "id": "msg_003", "from": {"agent": "zeno"}, "priority": "high", ...}
+```
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `v` | integer | Schema version of this record |
+
+Short field name (`v` not `version`) because JSONL should be compact.
+
+### Version Authority
+
+The schema version is defined in `core/schema.py`:
+
+```python
+# core/schema.py — single source of truth
+
+MESSAGES_VERSION = 2
+INSIGHTS_VERSION = 1
+CONFIG_VERSION = 1
+
+def write_message(msg):
+    msg["v"] = MESSAGES_VERSION
+    return json.dumps(msg)
+```
+
+All agents import this module. No agent writes JSON directly.
+
+### Reading with Version Check
+
+```python
+def read_message(line):
+    msg = json.loads(line)
+    version = msg.get("v", 0)  # v0 = pre-versioning
+    
+    if version == MESSAGES_VERSION:
+        return msg  # Hot path, no overhead
+    
+    if version > MESSAGES_VERSION:
+        raise UnsupportedVersion(
+            f"Message v{version} requires newer outheis"
+        )
+    
+    # Only old messages go through migration
+    return migrate_message(msg, from_version=version)
+```
+
+**Performance:** 99% of messages match current version → single integer comparison, no overhead.
+
+### Migration Logic
+
+Migration is stepwise (v0 → v1 → v2), located in `core/schema.py`:
+
+```python
+def migrate_message(msg, from_version):
+    """Stepwise migration: v0 → v1 → v2 → ..."""
+    
+    if from_version < 1:
+        # v0 → v1: "from" was string, now object
+        if isinstance(msg.get("from"), str):
+            msg["from"] = {"agent": msg["from"]}
+        msg["v"] = 1
+        from_version = 1
+    
+    if from_version < 2:
+        # v1 → v2: New field "priority" with default
+        msg.setdefault("priority", "normal")
+        msg["v"] = 2
+        from_version = 2
+    
+    return msg
+```
+
+| Principle | Reason |
+|-----------|--------|
+| Stepwise (v0→v1→v2) | Each step isolated, testable |
+| Lossless | Old data remains fully readable |
+| Read-time migration | Original file unchanged |
+| Write always current | Never create old versions |
+
+### Migration CLI
+
+```bash
+# Scan for outdated records
+outheis migrate --scan
+
+> Found 47 messages at v1 (current: v2)
+> Found 12 insights at v0 (current: v1)
+> 
+> Run 'outheis migrate --apply' to convert
+
+# Apply migration
+outheis migrate --apply
+
+> Migrating messages.jsonl: 47 entries v1 → v2
+> Migrating archive/messages-2025-01.jsonl: 128 entries v1 → v2
+> Migrating insights.jsonl: 12 entries v0 → v1
+> Done. Backup in human/.migrate-backup/2025-11-15T10:00:00/
+
+# Quiet mode for automation
+outheis migrate --apply --quiet
+```
+
+### Automatic Migration
+
+Optional: run migration in nightly batch with Pattern agent.
+
+```json
+{
+  "system": {
+    "auto_migrate": true,
+    "migrate_schedule": "04:00"
+  }
+}
+```
+
+### Version History
+
+| File | Current | Changes |
+|------|---------|---------|
+| messages.jsonl | v1 | Initial |
+| insights.jsonl | v1 | Initial |
+| config.json | v1 | Initial |
+| tag-weights.jsonl | v1 | Initial |
+| index.jsonl | v1 | Initial |
+
+*Updated with each schema change.*
+
+---
+
 ## Theoretical Background
 
 The vault architecture implements principles of *prospective information architecture*:
@@ -532,7 +678,7 @@ The vault architecture implements principles of *prospective information archite
 - **Structure at query time**: Hierarchies are computed, not stored
 - **Plaintext as foundation**: Universal readability, long-term stability
 
-See: *Die Temporalisierung von Ordnung* (forthcoming) for theoretical foundations.
+See: [Temporalization of Order](https://github.com/outheis-labs/research-base/blob/main/temporalization-of-order/temporalization-of-order.md) for theoretical foundations.
 
 ---
 
