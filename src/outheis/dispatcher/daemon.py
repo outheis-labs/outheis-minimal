@@ -165,12 +165,19 @@ class Dispatcher:
     
     def run(self) -> None:
         """Run the dispatcher daemon."""
+        from outheis.dispatcher.lock import LockManager
+        
         init_directories()
         write_pid()
         self.running = True
         
         print(f"Dispatcher started (PID {os.getpid()})")
         print(f"Watching: {self.queue_path}")
+        
+        # Start lock manager
+        lock_manager = LockManager()
+        lock_manager.start()
+        print(f"Lock manager listening on: {lock_manager.socket_path}")
         
         # Process any existing messages
         self.process_pending()
@@ -187,6 +194,7 @@ class Dispatcher:
                 time.sleep(0.1)
         finally:
             watcher.stop()
+            lock_manager.stop()
             remove_pid()
             print("Dispatcher stopped")
     
