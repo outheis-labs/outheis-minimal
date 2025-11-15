@@ -42,7 +42,7 @@ Edit `~/.outheis/human/config.json`:
 
 ## CLI Commands
 
-### Daemon Control
+### Daemon control
 
 ```bash
 outheis start       # Start dispatcher (background)
@@ -50,6 +50,8 @@ outheis start -f    # Start in foreground
 outheis stop        # Stop dispatcher
 outheis status      # Show status, PID, uptime
 ```
+
+The dispatcher runs as a background daemon. It watches the message queue, routes messages to agents, and schedules the Pattern agent (rumi) to run at a configured time (default: 04:00). No separate cron or launchd configuration needed — the scheduler is built into the dispatcher and works on all platforms.
 
 ### Messaging
 
@@ -131,9 +133,12 @@ vault/
   "llm": {
     "provider": "anthropic",
     "model": "claude-sonnet-4-20250514"
-  }
+  },
+  "pattern_schedule": "04:00"
 }
 ```
+
+The `pattern_schedule` controls when the Pattern agent (rumi) runs its daily reflection. Format: `HH:MM` in local time.
 
 ## Troubleshooting
 

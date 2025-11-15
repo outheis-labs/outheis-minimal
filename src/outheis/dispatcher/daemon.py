@@ -78,13 +78,17 @@ class Dispatcher:
     The dispatcher daemon.
 
     Watches the message queue, routes messages to agents,
-    and manages responses.
+    and manages responses. Also schedules Pattern agent runs.
     """
 
     config: Config = field(default_factory=load_config)
     queue_path: Path = field(default_factory=get_messages_path)
     last_processed_id: str | None = None
     running: bool = False
+    
+    # Scheduler state
+    _last_pattern_check: float = 0
+    _pattern_run_today: bool = False
 
     # Agents (loaded on demand)
     _agents: dict = field(default_factory=dict)
@@ -193,12 +197,55 @@ class Dispatcher:
 
         try:
             while self.running:
+                self._check_scheduled_tasks()
                 time.sleep(0.1)
         finally:
             watcher.stop()
             lock_manager.stop()
             remove_pid()
             print("Dispatcher stopped")
+
+    def _check_scheduled_tasks(self) -> None:
+        """Check and run scheduled tasks (Pattern agent)."""
+        from datetime import datetime
+        
+        now = time.time()
+        
+        # Only check once per minute
+        if now - self._last_pattern_check < 60:
+            return
+        self._last_pattern_check = now
+        
+        # Get configured schedule time (default 04:00)
+        schedule_time = self.config.migrate_schedule  # Reusing this field for now
+        try:
+            hour, minute = map(int, schedule_time.split(":"))
+        except (ValueError, AttributeError):
+            hour, minute = 4, 0
+        
+        # Check if it's time to run
+        current = datetime.now()
+        is_scheduled_time = current.hour == hour and current.minute == minute
+        
+        # Reset flag at midnight
+        if current.hour == 0 and current.minute == 0:
+            self._pattern_run_today = False
+        
+        # Run Pattern agent if scheduled and not yet run today
+        if is_scheduled_time and not self._pattern_run_today:
+            self._run_pattern_agent()
+            self._pattern_run_today = True
+    
+    def _run_pattern_agent(self) -> None:
+        """Run the Pattern agent's scheduled task."""
+        print(f"Running scheduled Pattern agent...")
+        try:
+            pattern = self.get_agent("pattern")
+            if pattern:
+                pattern.run_scheduled()
+                print("Pattern agent completed")
+        except Exception as e:
+            print(f"Pattern agent error: {e}")
 
     def _on_queue_change(self) -> None:
         """Called when queue file changes."""

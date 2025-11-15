@@ -28,6 +28,10 @@ Work-in-progress tracking. Completed items are removed.
   - Periodically re-evaluate as vault content changes
   - Result: bounded set of high-semantic-overlap tags
   - Store in `tag-weights.jsonl`, expose via Data agent
+- [x] **Scheduler in dispatcher** (no cron/launchd needed)
+  - Dispatcher wakes Pattern agent at configured time
+  - Platform-independent, runs wherever dispatcher runs
+  - Default: 04:00 local time, configurable via `pattern_schedule`
 - [ ] Tag harmonization
 - [ ] Signal transport
 - [ ] Web UI (localhost)
