@@ -7,11 +7,9 @@ Reflection, insight extraction, learning, and knowledge generalization.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
-
 
 # =============================================================================
 # SYSTEM PROMPT
@@ -73,17 +71,17 @@ You do NOT:
 class PatternAgent(BaseAgent):
     """
     Pattern agent handles reflection and learning.
-    
+
     MVP: Not implemented.
     Production: Session note review, insight extraction, tag harmonization.
     """
-    
+
     name: str = "pattern"
-    
+
     def get_system_prompt(self) -> str:
         return PATTERN_SYSTEM_PROMPT
-    
-    def handle(self, msg: Message) -> Optional[Message]:
+
+    def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message."""
         # TODO: Implement pattern recognition
         return self.respond(
@@ -95,11 +93,11 @@ class PatternAgent(BaseAgent):
             conversation_id=msg.conversation_id,
             reply_to=msg.id,
         )
-    
+
     def run_scheduled(self) -> None:
         """
         Run scheduled reflection.
-        
+
         Called at configured time (default 04:00).
         """
         # TODO: Implement scheduled reflection

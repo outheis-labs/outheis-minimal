@@ -8,10 +8,9 @@ All agents and components communicate via messages in the queue.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field, asdict
-from typing import Literal, Optional
+from dataclasses import dataclass
+from typing import Literal
 from uuid import uuid4
-
 
 # =============================================================================
 # TYPES
@@ -31,7 +30,7 @@ class UserOrigin:
     """Origin information when message is from a user."""
     channel: Channel
     identity: str  # Phone number, username, API key
-    name: Optional[str] = None
+    name: str | None = None
 
 
 @dataclass
@@ -44,7 +43,7 @@ class AgentOrigin:
 class Message:
     """
     A message in the outheis system.
-    
+
     Messages are immutable once created. They are appended to the queue
     and never modified.
     """
@@ -53,24 +52,24 @@ class Message:
     to: str  # AgentId | "dispatcher" | "transport"
     type: MessageType
     payload: dict
-    
+
     # Origin: either agent or user, not both
-    from_agent: Optional[AgentId] = None
-    from_user: Optional[UserOrigin] = None
-    
+    from_agent: AgentId | None = None
+    from_user: UserOrigin | None = None
+
     # Optional fields
-    intent: Optional[str] = None
-    reply_to: Optional[str] = None
-    
+    intent: str | None = None
+    reply_to: str | None = None
+
     # Metadata (not part of schema, added at write time)
-    timestamp: Optional[float] = None
-    
+    timestamp: float | None = None
+
     def __post_init__(self):
         if self.from_agent is None and self.from_user is None:
             raise ValueError("Message must have either from_agent or from_user")
         if self.from_agent is not None and self.from_user is not None:
             raise ValueError("Message cannot have both from_agent and from_user")
-    
+
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
         d = {
@@ -80,7 +79,7 @@ class Message:
             "type": self.type,
             "payload": self.payload,
         }
-        
+
         if self.from_agent:
             d["from"] = {"agent": self.from_agent}
         elif self.from_user:
@@ -92,22 +91,22 @@ class Message:
             }
             if self.from_user.name:
                 d["from"]["user"]["name"] = self.from_user.name
-        
+
         if self.intent:
             d["intent"] = self.intent
         if self.reply_to:
             d["reply_to"] = self.reply_to
         if self.timestamp:
             d["timestamp"] = self.timestamp
-        
+
         return d
-    
+
     @classmethod
     def from_dict(cls, d: dict) -> Message:
         """Create from dictionary (after parsing JSON)."""
         from_agent = None
         from_user = None
-        
+
         if "from" in d:
             if "agent" in d["from"]:
                 from_agent = d["from"]["agent"]
@@ -118,7 +117,7 @@ class Message:
                     identity=u["identity"],
                     name=u.get("name"),
                 )
-        
+
         return cls(
             id=d["id"],
             conversation_id=d["conversation_id"],
@@ -152,8 +151,8 @@ def create_user_message(
     text: str,
     channel: Channel,
     identity: str,
-    name: Optional[str] = None,
-    conversation_id: Optional[str] = None,
+    name: str | None = None,
+    conversation_id: str | None = None,
 ) -> Message:
     """Create a message from a user."""
     return Message(
@@ -173,8 +172,8 @@ def create_agent_message(
     type: MessageType,
     payload: dict,
     conversation_id: str,
-    intent: Optional[str] = None,
-    reply_to: Optional[str] = None,
+    intent: str | None = None,
+    reply_to: str | None = None,
 ) -> Message:
     """Create a message from an agent."""
     return Message(

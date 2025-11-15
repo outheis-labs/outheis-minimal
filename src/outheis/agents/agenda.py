@@ -7,11 +7,9 @@ Personal secretary: filtering, prioritizing, learning user preferences.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
-
 
 # =============================================================================
 # SYSTEM PROMPT
@@ -57,17 +55,17 @@ You do NOT:
 class AgendaAgent(BaseAgent):
     """
     Agenda agent handles filtering and prioritization.
-    
+
     MVP: Not implemented.
     Production: User rules, daily management, conflict detection.
     """
-    
+
     name: str = "agenda"
-    
+
     def get_system_prompt(self) -> str:
         return AGENDA_SYSTEM_PROMPT
-    
-    def handle(self, msg: Message) -> Optional[Message]:
+
+    def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message."""
         # TODO: Implement agenda operations
         return self.respond(

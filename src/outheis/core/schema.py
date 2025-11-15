@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
 
 # =============================================================================
 # VERSION CONSTANTS — increment when schema changes
@@ -34,7 +33,7 @@ class SchemaError(Exception):
 
 class UnsupportedVersion(SchemaError):
     """Record version is newer than supported."""
-    
+
     def __init__(self, record_type: str, found: int, supported: int):
         self.record_type = record_type
         self.found = found
@@ -57,7 +56,7 @@ class MigrationError(SchemaError):
 def migrate_message(msg: dict, from_version: int) -> dict:
     """
     Stepwise migration: v0 → v1 → v2 → ...
-    
+
     Each step is isolated and testable.
     Returns migrated message with updated version.
     """
@@ -66,14 +65,14 @@ def migrate_message(msg: dict, from_version: int) -> dict:
         # (v0 means pre-versioning, treat as v1)
         msg["v"] = 1
         from_version = 1
-    
+
     # Future migrations go here:
     # if from_version < 2:
     #     # v1 → v2: Add new field with default
     #     msg.setdefault("priority", "normal")
     #     msg["v"] = 2
     #     from_version = 2
-    
+
     return msg
 
 
@@ -82,7 +81,7 @@ def migrate_insight(insight: dict, from_version: int) -> dict:
     if from_version < 1:
         insight["v"] = 1
         from_version = 1
-    
+
     return insight
 
 
@@ -91,7 +90,7 @@ def migrate_session_note(note: dict, from_version: int) -> dict:
     if from_version < 1:
         note["v"] = 1
         from_version = 1
-    
+
     return note
 
 
@@ -102,19 +101,19 @@ def migrate_session_note(note: dict, from_version: int) -> dict:
 def read_message(line: str) -> dict:
     """
     Parse and migrate a message record.
-    
+
     Hot path: if version matches, just parse and return.
     Cold path: migrate outdated records.
     """
     msg = json.loads(line)
     version = msg.get("v", 0)
-    
+
     if version == MESSAGES_VERSION:
         return msg  # Hot path, no overhead
-    
+
     if version > MESSAGES_VERSION:
         raise UnsupportedVersion("Message", version, MESSAGES_VERSION)
-    
+
     return migrate_message(msg, from_version=version)
 
 
@@ -122,13 +121,13 @@ def read_insight(line: str) -> dict:
     """Parse and migrate an insight record."""
     insight = json.loads(line)
     version = insight.get("v", 0)
-    
+
     if version == INSIGHTS_VERSION:
         return insight
-    
+
     if version > INSIGHTS_VERSION:
         raise UnsupportedVersion("Insight", version, INSIGHTS_VERSION)
-    
+
     return migrate_insight(insight, from_version=version)
 
 
@@ -136,13 +135,13 @@ def read_session_note(line: str) -> dict:
     """Parse and migrate a session note record."""
     note = json.loads(line)
     version = note.get("v", 0)
-    
+
     if version == SESSION_NOTES_VERSION:
         return note
-    
+
     if version > SESSION_NOTES_VERSION:
         raise UnsupportedVersion("SessionNote", version, SESSION_NOTES_VERSION)
-    
+
     return migrate_session_note(note, from_version=version)
 
 
@@ -186,13 +185,13 @@ class MigrationReport:
 def scan_file(path: str, record_type: str, current_version: int) -> MigrationReport:
     """
     Scan a JSONL file and report version distribution.
-    
+
     Does not modify the file.
     """
     versions: dict[int, int] = {}
     total = 0
-    
-    with open(path, "r", encoding="utf-8") as f:
+
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -204,9 +203,9 @@ def scan_file(path: str, record_type: str, current_version: int) -> MigrationRep
                 total += 1
             except json.JSONDecodeError:
                 continue
-    
+
     outdated = sum(count for v, count in versions.items() if v < current_version)
-    
+
     return MigrationReport(
         path=path,
         record_type=record_type,

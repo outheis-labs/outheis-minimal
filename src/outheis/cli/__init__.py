@@ -1,3 +1,3 @@
 """CLI commands."""
 
-from outheis.cli.main import app
+from outheis.cli.main import app as app

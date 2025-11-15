@@ -7,11 +7,9 @@ Task execution and external integrations.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
-
 
 # =============================================================================
 # SYSTEM PROMPT
@@ -56,17 +54,17 @@ You do NOT:
 class ActionAgent(BaseAgent):
     """
     Action agent handles external operations.
-    
+
     MVP: Not implemented.
     Production: Calendar, email, task integrations.
     """
-    
+
     name: str = "action"
-    
+
     def get_system_prompt(self) -> str:
         return ACTION_SYSTEM_PROMPT
-    
-    def handle(self, msg: Message) -> Optional[Message]:
+
+    def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message."""
         # TODO: Implement action execution
         return self.respond(

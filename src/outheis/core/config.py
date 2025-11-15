@@ -11,8 +11,6 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-
 
 # =============================================================================
 # PATHS
@@ -69,16 +67,16 @@ class UserConfig:
     language: str = "en"
     timezone: str = "UTC"
     vault: list[str] = field(default_factory=lambda: ["~/Documents/Vault"])
-    
+
     # Optional fields
-    signal_phone: Optional[str] = None
-    
+    signal_phone: str | None = None
+
     def primary_vault(self) -> Path:
         """Get primary vault path (first in list)."""
         if not self.vault:
             return get_human_dir() / "vault"
         return Path(os.path.expanduser(self.vault[0]))
-    
+
     def all_vaults(self) -> list[Path]:
         """Get all vault paths, expanded."""
         return [Path(os.path.expanduser(v)) for v in self.vault]
@@ -107,7 +105,7 @@ class Config:
     user: UserConfig = field(default_factory=UserConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     agents: dict[str, AgentConfig] = field(default_factory=dict)
-    
+
     # System settings
     auto_migrate: bool = True
     migrate_schedule: str = "04:00"
@@ -120,20 +118,20 @@ class Config:
 def load_config() -> Config:
     """Load configuration from file."""
     path = get_config_path()
-    
+
     if not path.exists():
         return Config()
-    
-    with open(path, "r", encoding="utf-8") as f:
+
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
-    
+
     user = UserConfig(**data.get("user", {})) if "user" in data else UserConfig()
     routing = RoutingConfig(**data.get("routing", {})) if "routing" in data else RoutingConfig()
-    
+
     agents = {}
     for name, cfg in data.get("agents", {}).items():
         agents[name] = AgentConfig(**cfg)
-    
+
     return Config(
         user=user,
         routing=routing,
@@ -147,7 +145,7 @@ def save_config(config: Config) -> None:
     """Save configuration to file."""
     path = get_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     data = {
         "user": {
             "name": config.user.name,
@@ -172,10 +170,10 @@ def save_config(config: Config) -> None:
         "auto_migrate": config.auto_migrate,
         "migrate_schedule": config.migrate_schedule,
     }
-    
+
     if config.user.signal_phone:
         data["user"]["signal_phone"] = config.user.signal_phone
-    
+
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -195,10 +193,10 @@ def init_directories() -> None:
         get_human_dir() / "cache",
         get_human_dir() / "imports",
     ]
-    
+
     for d in dirs:
         d.mkdir(parents=True, exist_ok=True)
-    
+
     # Create default config if needed
     if not get_config_path().exists():
         save_config(Config())

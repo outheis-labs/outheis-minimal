@@ -9,10 +9,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
-
 
 # =============================================================================
 # FRONTMATTER PARSING
@@ -30,14 +29,14 @@ class VaultFile:
     path: Path
     content: str
     frontmatter: dict[str, Any] = field(default_factory=dict)
-    
+
     @property
     def title(self) -> str:
         """Get title from frontmatter or filename."""
         if "title" in self.frontmatter:
             return self.frontmatter["title"]
         return self.path.stem
-    
+
     @property
     def tags(self) -> list[str]:
         """Get tags from frontmatter."""
@@ -45,7 +44,7 @@ class VaultFile:
         if isinstance(tags, str):
             return [tags]
         return tags or []
-    
+
     @property
     def body(self) -> str:
         """Get content without frontmatter."""
@@ -59,14 +58,14 @@ def read_file(path: Path) -> VaultFile:
     """Read a vault file with frontmatter parsing."""
     content = path.read_text(encoding="utf-8")
     frontmatter = {}
-    
+
     match = FRONTMATTER_PATTERN.match(content)
     if match:
         try:
             frontmatter = yaml.safe_load(match.group(1)) or {}
         except yaml.YAMLError:
             pass
-    
+
     return VaultFile(
         path=path,
         content=content,
@@ -84,32 +83,32 @@ def iter_vault_files(
 ) -> list[VaultFile]:
     """
     Iterate over all files in a vault.
-    
+
     Respects conventions:
     - Ignores hidden files/directories (except .git)
     - Only includes specified extensions
     """
     files = []
-    
+
     for path in vault_path.rglob("*"):
         # Skip hidden files/directories
         if any(part.startswith(".") and part != ".git" for part in path.parts):
             continue
-        
+
         # Skip non-files
         if not path.is_file():
             continue
-        
+
         # Skip wrong extensions
-        if not path.suffix.lower() in extensions:
+        if path.suffix.lower() not in extensions:
             continue
-        
+
         try:
             files.append(read_file(path))
         except Exception:
             # Skip unreadable files
             continue
-    
+
     return files
 
 
@@ -120,11 +119,11 @@ def find_by_tag(
     """Find all files with a specific tag."""
     tag_lower = tag.lower()
     results = []
-    
+
     for vf in iter_vault_files(vault_path):
         if any(t.lower() == tag_lower for t in vf.tags):
             results.append(vf)
-    
+
     return results
 
 
@@ -135,11 +134,11 @@ def find_by_title(
     """Find files by title (case-insensitive substring match)."""
     query_lower = query.lower()
     results = []
-    
+
     for vf in iter_vault_files(vault_path):
         if query_lower in vf.title.lower():
             results.append(vf)
-    
+
     return results
 
 
@@ -150,9 +149,9 @@ def search_content(
     """Search file contents (case-insensitive)."""
     query_lower = query.lower()
     results = []
-    
+
     for vf in iter_vault_files(vault_path):
         if query_lower in vf.content.lower():
             results.append(vf)
-    
+
     return results

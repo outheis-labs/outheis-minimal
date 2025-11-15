@@ -6,14 +6,9 @@ Handles command-line interaction with outheis.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-from typing import Optional
-
-from outheis.core.config import get_messages_path, load_config
-from outheis.core.message import create_user_message, Message
-from outheis.core.queue import append, read_conversation, read_last_n
-
+from outheis.core.config import get_messages_path
+from outheis.core.message import Message, create_user_message
+from outheis.core.queue import append, read_last_n
 
 # =============================================================================
 # CLI TRANSPORT
@@ -22,15 +17,15 @@ from outheis.core.queue import append, read_conversation, read_last_n
 class CLITransport:
     """
     Command-line transport.
-    
+
     Sends user messages to the queue and displays responses.
     """
-    
+
     def __init__(self, identity: str = "cli_user"):
         self.identity = identity
         self.queue_path = get_messages_path()
-        self.current_conversation: Optional[str] = None
-    
+        self.current_conversation: str | None = None
+
     def send(self, text: str) -> Message:
         """Send a message and return it."""
         msg = create_user_message(
@@ -39,33 +34,33 @@ class CLITransport:
             identity=self.identity,
             conversation_id=self.current_conversation,
         )
-        
+
         # Update current conversation
         self.current_conversation = msg.conversation_id
-        
+
         # Append to queue
         append(self.queue_path, msg)
-        
+
         return msg
-    
+
     def wait_for_response(
         self,
         message_id: str,
         timeout: float = 30.0,
-    ) -> Optional[Message]:
+    ) -> Message | None:
         """
         Wait for a response to a message.
-        
+
         Polls the queue for a response message.
         """
         import time
-        
+
         start = time.time()
-        
+
         while time.time() - start < timeout:
             # Check for response
             messages = read_last_n(self.queue_path, 10)
-            
+
             for msg in messages:
                 if (
                     msg.reply_to == message_id
@@ -73,51 +68,51 @@ class CLITransport:
                     and msg.from_agent
                 ):
                     return msg
-            
+
             time.sleep(0.1)
-        
+
         return None
-    
+
     def display(self, msg: Message) -> None:
         """Display a message to the terminal."""
         text = msg.payload.get("text", "")
-        
+
         if msg.from_agent:
             agent = msg.from_agent
             print(f"\n[{agent}] {text}")
         else:
             print(f"\n> {text}")
-    
+
     def interactive(self) -> None:
         """Run interactive CLI session."""
         print("outheis CLI (type 'exit' to quit)")
         print("-" * 40)
-        
+
         while True:
             try:
                 text = input("\n> ").strip()
-                
+
                 if not text:
                     continue
-                
+
                 if text.lower() in ("exit", "quit", "q"):
                     break
-                
+
                 msg = self.send(text)
                 print(f"[sent: {msg.id[:8]}...]")
-                
+
                 # Wait for response
                 response = self.wait_for_response(msg.id)
-                
+
                 if response:
                     self.display(response)
                 else:
                     print("[no response received]")
-                    
+
             except KeyboardInterrupt:
                 print("\n[interrupted]")
                 break
             except EOFError:
                 break
-        
+
         print("\nGoodbye.")

@@ -13,15 +13,12 @@ from __future__ import annotations
 
 import fcntl
 import json
-import os
 import time
-import uuid
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Optional
 
-from outheis.core.schema import read_message, write_message
 from outheis.core.message import Message
-
+from outheis.core.schema import read_message, write_message
 
 # =============================================================================
 # PENDING DIRECTORY
@@ -43,22 +40,22 @@ def ensure_pending_dir() -> Path:
 def write_pending(msg: Message) -> Path:
     """
     Write message to pending directory.
-    
+
     Returns path to pending file.
     """
     pending_dir = ensure_pending_dir()
     pending_path = pending_dir / f"{msg.id}.json"
-    
+
     data = {
         "msg": msg.to_dict(),
         "timestamp": time.time(),
     }
-    
+
     # Atomic write
     tmp_path = pending_path.with_suffix(".tmp")
     tmp_path.write_text(json.dumps(data), encoding="utf-8")
     tmp_path.rename(pending_path)
-    
+
     return pending_path
 
 
@@ -70,7 +67,7 @@ def delete_pending(pending_path: Path) -> None:
 def recover_pending(queue_path: Path) -> int:
     """
     Recover pending messages to queue.
-    
+
     Called by Dispatcher on startup.
     Checks for duplicates before appending.
     Returns count of recovered messages.
@@ -78,21 +75,21 @@ def recover_pending(queue_path: Path) -> int:
     pending_dir = get_pending_dir()
     if not pending_dir.exists():
         return 0
-    
+
     # Get recent IDs to check for duplicates
     existing_ids = set(read_last_n_ids(queue_path, 100))
-    
+
     count = 0
     for pending_path in sorted(pending_dir.glob("*.json")):
         try:
             data = json.loads(pending_path.read_text(encoding="utf-8"))
             msg = Message.from_dict(data["msg"])
-            
+
             # Skip if already in queue (duplicate)
             if msg.id in existing_ids:
                 delete_pending(pending_path)
                 continue
-            
+
             # Append with lock
             line = write_message(msg.to_dict())
             with open(queue_path, "a", encoding="utf-8") as f:
@@ -101,13 +98,13 @@ def recover_pending(queue_path: Path) -> int:
                     f.write(line + "\n")
                 finally:
                     fcntl.flock(f, fcntl.LOCK_UN)
-            
+
             delete_pending(pending_path)
             count += 1
         except Exception:
             # Log in production, skip corrupted
             continue
-    
+
     return count
 
 
@@ -115,9 +112,9 @@ def read_last_n_ids(path: Path, n: int) -> list[str]:
     """Read the last N message IDs from the queue."""
     if not path.exists():
         return []
-    
+
     ids = []
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -128,7 +125,7 @@ def read_last_n_ids(path: Path, n: int) -> list[str]:
                     ids.append(d["id"])
             except Exception:
                 continue
-    
+
     return ids[-n:] if len(ids) > n else ids
 
 
@@ -139,27 +136,27 @@ def read_last_n_ids(path: Path, n: int) -> list[str]:
 def append(path: Path, msg: Message) -> None:
     """
     Append a message to the queue with write-ahead safety.
-    
+
     1. Write to .pending/ (survives crash)
     2. flock + append to queue
     3. Delete from .pending/
-    
+
     If process dies between 1-3, Dispatcher recovers on startup.
     """
     # 1. Write-ahead
     pending_path = write_pending(msg)
-    
+
     try:
         # 2. Append with lock
         line = write_message(msg.to_dict())
-        
+
         with open(path, "a", encoding="utf-8") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 f.write(line + "\n")
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
-        
+
         # 3. Cleanup
         delete_pending(pending_path)
     except Exception:
@@ -170,14 +167,14 @@ def append(path: Path, msg: Message) -> None:
 def read_all(path: Path) -> list[Message]:
     """
     Read all messages from the queue.
-    
+
     Handles version migration transparently.
     """
     if not path.exists():
         return []
-    
+
     messages = []
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -188,22 +185,22 @@ def read_all(path: Path) -> list[Message]:
             except Exception:
                 # Skip malformed lines, log in production
                 continue
-    
+
     return messages
 
 
-def read_from(path: Path, after_id: Optional[str] = None) -> Iterator[Message]:
+def read_from(path: Path, after_id: str | None = None) -> Iterator[Message]:
     """
     Read messages from the queue, optionally after a given ID.
-    
+
     Yields messages one by one for memory efficiency.
     """
     if not path.exists():
         return
-    
+
     found_marker = after_id is None
-    
-    with open(path, "r", encoding="utf-8") as f:
+
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -211,12 +208,12 @@ def read_from(path: Path, after_id: Optional[str] = None) -> Iterator[Message]:
             try:
                 d = read_message(line)
                 msg = Message.from_dict(d)
-                
+
                 if not found_marker:
                     if msg.id == after_id:
                         found_marker = True
                     continue
-                
+
                 yield msg
             except Exception:
                 continue
@@ -225,7 +222,7 @@ def read_from(path: Path, after_id: Optional[str] = None) -> Iterator[Message]:
 def read_last_n(path: Path, n: int) -> list[Message]:
     """
     Read the last N messages from the queue.
-    
+
     Simple implementation: reads all, returns last N.
     For large queues, a more efficient implementation would
     read from the end of the file.
@@ -264,9 +261,9 @@ def message_count(path: Path) -> int:
     """Count messages in queue."""
     if not path.exists():
         return 0
-    
+
     count = 0
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             if line.strip():
                 count += 1

@@ -35,10 +35,10 @@ def main(
 @app.command()
 def init() -> None:
     """Initialize outheis directories and config."""
-    from outheis.core.config import init_directories, get_config_path
-    
+    from outheis.core.config import get_config_path, init_directories
+
     init_directories()
-    typer.echo(f"Initialized outheis at ~/.outheis")
+    typer.echo("Initialized outheis at ~/.outheis")
     typer.echo(f"Config: {get_config_path()}")
 
 
@@ -54,12 +54,12 @@ def start(
     """Start the outheis dispatcher daemon."""
     from outheis.core.config import init_directories
     from outheis.dispatcher.daemon import start_daemon
-    
+
     init_directories()
-    
+
     if foreground:
         typer.echo("Starting dispatcher in foreground (Ctrl+C to stop)...")
-    
+
     success = start_daemon(foreground=foreground)
     if not success and not foreground:
         raise typer.Exit(1)
@@ -69,7 +69,7 @@ def start(
 def stop() -> None:
     """Stop the outheis dispatcher daemon."""
     from outheis.dispatcher.daemon import stop_daemon
-    
+
     success = stop_daemon()
     if not success:
         raise typer.Exit(1)
@@ -83,21 +83,21 @@ def send(
     """Send a message and wait for response."""
     from outheis.dispatcher.daemon import daemon_status
     from outheis.transport.cli import CLITransport
-    
+
     # Check if daemon is running
     status = daemon_status()
     if not status["running"]:
         typer.echo("Dispatcher not running. Start it with: outheis start")
         raise typer.Exit(1)
-    
+
     transport = CLITransport()
     msg = transport.send(message)
-    
+
     typer.echo(f"Sent: {msg.id[:8]}...")
-    
+
     # Wait for response from dispatcher
     response = transport.wait_for_response(msg.id, timeout=timeout)
-    
+
     if response:
         typer.echo(f"\n{response.payload.get('text', '')}")
     else:
@@ -109,42 +109,42 @@ def chat() -> None:
     """Start interactive chat session (requires running dispatcher)."""
     from outheis.dispatcher.daemon import daemon_status
     from outheis.transport.cli import CLITransport
-    
+
     # Check if daemon is running
     status = daemon_status()
     if not status["running"]:
         typer.echo("Dispatcher not running. Start it with: outheis start")
         raise typer.Exit(1)
-    
+
     typer.echo("outheis CLI (type 'exit' to quit)")
     typer.echo("-" * 40)
-    
+
     transport = CLITransport()
-    
+
     while True:
         try:
             text = typer.prompt("\n>", default="", show_default=False)
-            
+
             if not text.strip():
                 continue
-            
+
             if text.strip().lower() in ("exit", "quit", "q"):
                 break
-            
+
             msg = transport.send(text)
             response = transport.wait_for_response(msg.id, timeout=30.0)
-            
+
             if response:
                 typer.echo(f"\n{response.payload.get('text', '')}")
             else:
                 typer.echo("[no response]")
-                
+
         except KeyboardInterrupt:
             typer.echo("\n[interrupted]")
             break
         except EOFError:
             break
-    
+
     typer.echo("\nGoodbye.")
 
 
@@ -152,25 +152,25 @@ def chat() -> None:
 def status() -> None:
     """Show system status."""
     from outheis.core.config import (
-        load_config,
         get_messages_path,
+        load_config,
     )
     from outheis.core.queue import message_count, queue_size
     from outheis.dispatcher.daemon import daemon_status
-    
+
     config = load_config()
     queue_path = get_messages_path()
     dstatus = daemon_status()
-    
+
     typer.echo("outheis status")
     typer.echo("-" * 40)
-    
+
     # Daemon status
     if dstatus["running"]:
         typer.echo(f"Dispatcher: running (PID {dstatus['pid']})")
     else:
         typer.echo("Dispatcher: stopped")
-    
+
     typer.echo()
     typer.echo(f"User: {config.user.name}")
     typer.echo(f"Language: {config.user.language}")
@@ -188,27 +188,27 @@ def migrate(
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet mode"),
 ) -> None:
     """Scan for and apply schema migrations."""
-    from outheis.core.config import get_messages_path, get_insights_path
+    from outheis.core.config import get_insights_path, get_messages_path
     from outheis.core.schema import (
-        scan_file,
-        MESSAGES_VERSION,
         INSIGHTS_VERSION,
+        MESSAGES_VERSION,
+        scan_file,
     )
-    
+
     files_to_scan = [
         (get_messages_path(), "Message", MESSAGES_VERSION),
         (get_insights_path(), "Insight", INSIGHTS_VERSION),
     ]
-    
+
     total_outdated = 0
-    
+
     for path, record_type, current_version in files_to_scan:
         if not path.exists():
             continue
-        
+
         report = scan_file(str(path), record_type, current_version)
         total_outdated += report.outdated
-        
+
         if not quiet and report.outdated > 0:
             typer.echo(
                 f"Found {report.outdated} {record_type}s at old version "
@@ -217,7 +217,7 @@ def migrate(
             for v, count in sorted(report.versions_found.items()):
                 if v < current_version:
                     typer.echo(f"  v{v}: {count} records")
-    
+
     if scan and not apply:
         if total_outdated == 0:
             typer.echo("All records up to date.")
@@ -225,13 +225,13 @@ def migrate(
             typer.echo(f"\nTotal: {total_outdated} outdated records")
             typer.echo("Run 'outheis migrate --apply' to convert")
         return
-    
+
     if apply:
         if total_outdated == 0:
             if not quiet:
                 typer.echo("Nothing to migrate.")
             return
-        
+
         # TODO: Implement actual migration
         typer.echo("Migration not yet implemented.")
         typer.echo("Records will be migrated on-the-fly when read.")
@@ -243,19 +243,19 @@ def pattern(
 ) -> None:
     """Run Pattern agent reflection (normally scheduled at 04:00)."""
     from outheis.agents.pattern import create_pattern_agent
-    
+
     typer.echo("Running Pattern agent...")
-    
+
     agent = create_pattern_agent()
-    
+
     if dry_run:
         typer.echo("[dry-run] Would process session notes")
         typer.echo("[dry-run] Would extract insights")
         typer.echo("[dry-run] Would update tag weights")
         return
-    
+
     agent.run_scheduled()
-    
+
     typer.echo("Done.")
 
 

@@ -7,11 +7,9 @@ Knowledge management across all vaults.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
-
 
 # =============================================================================
 # SYSTEM PROMPT
@@ -56,21 +54,21 @@ You do NOT:
 class DataAgent(BaseAgent):
     """
     Data agent handles vault operations.
-    
+
     MVP: Basic search and read.
     Production: Full index, write operations, tag management.
     """
-    
+
     name: str = "data"
-    
+
     def get_system_prompt(self) -> str:
         return DATA_SYSTEM_PROMPT
-    
-    def handle(self, msg: Message) -> Optional[Message]:
+
+    def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message."""
         # TODO: Implement vault search and operations
         intent = msg.intent or "unknown"
-        
+
         return self.respond(
             to=msg.from_agent or "relay",
             payload={

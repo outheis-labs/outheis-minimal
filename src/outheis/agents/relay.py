@@ -8,11 +8,9 @@ formats output for each channel.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
-
 
 # =============================================================================
 # SYSTEM PROMPT
@@ -58,30 +56,30 @@ You do NOT:
 class RelayAgent(BaseAgent):
     """
     Relay agent handles all user communication.
-    
+
     For MVP: handles everything directly via LLM.
     For production: delegates to specialized agents.
     """
-    
+
     name: str = "relay"
-    
+
     def get_system_prompt(self) -> str:
         return RELAY_SYSTEM_PROMPT
-    
-    def handle(self, msg: Message) -> Optional[Message]:
+
+    def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message."""
         # Get user text
         text = msg.payload.get("text", "")
-        
+
         if not text:
             return None
-        
+
         # Get conversation context
         context = self.get_conversation_context(msg.conversation_id)
-        
+
         # Generate response via LLM
         response_text = self._generate_response(text, context, msg)
-        
+
         # Send response to transport
         return self.respond(
             to="transport",
@@ -89,7 +87,7 @@ class RelayAgent(BaseAgent):
             conversation_id=msg.conversation_id,
             reply_to=msg.id,
         )
-    
+
     def _generate_response(
         self,
         text: str,
@@ -98,24 +96,24 @@ class RelayAgent(BaseAgent):
     ) -> str:
         """
         Generate a response using LLM.
-        
+
         MVP: Uses anthropic SDK directly.
         """
         try:
             return self._call_llm(text, context)
         except Exception as e:
             return f"I encountered an error: {e}"
-    
+
     def _call_llm(self, text: str, context: list[Message]) -> str:
         """Call LLM API."""
         try:
             import anthropic
         except ImportError:
             return "[anthropic SDK not installed. Run: pip install anthropic]"
-        
+
         # Build messages for API
         messages = []
-        
+
         # Add context from conversation
         for msg in context[-5:]:  # Last 5 messages
             if msg.from_user:
@@ -125,26 +123,26 @@ class RelayAgent(BaseAgent):
                 })
             elif msg.from_agent == "relay":
                 messages.append({
-                    "role": "assistant", 
+                    "role": "assistant",
                     "content": msg.payload.get("text", ""),
                 })
-        
+
         # Add current message
         messages.append({
             "role": "user",
             "content": text,
         })
-        
+
         # Call API
         client = anthropic.Anthropic()
-        
+
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1024,
             system=self.get_system_prompt(),
             messages=messages,
         )
-        
+
         return response.content[0].text
 
 
