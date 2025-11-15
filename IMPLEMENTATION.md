@@ -1,5 +1,41 @@
 # Coherence Review and Implementation Plan
 
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────┐
+│              Dispatcher                  │
+│            (Microkernel)                 │
+│  - Routing (no LLM)                     │
+│  - Agent lifecycle                      │
+│  - Message queue management             │
+└─────────────────┬───────────────────────┘
+                  │
+    ┌─────────────┼─────────────┐
+    ▼             ▼             ▼
+┌───────┐    ┌───────┐    ┌───────┐
+│ relay │    │ data  │    │ ...   │
+│ (ou)  │    │(zeno) │    │       │
+└───┬───┘    └───┬───┘    └───────┘
+    │            │
+    ▼            ▼
+┌─────────────────────────────────────────┐
+│               LLM (CPU)                  │
+│  - Anthropic API                        │
+│  - Ollama (local)                       │
+│  - ...                                  │
+└─────────────────────────────────────────┘
+```
+
+| OS Concept | outheis Equivalent |
+|------------|-------------------|
+| Microkernel | Dispatcher |
+| CPU | LLM (Anthropic, Ollama, ...) |
+| Processes | Agents |
+| IPC | messages.jsonl |
+
+---
+
 ## 1. Document Coherence Analysis
 
 ### 1.1 Consistency Across Documents ✓
@@ -19,24 +55,18 @@
 |------|-----|-----------|--------|
 | 04-data-formats | research-base | Temporalization of Order | ✓ Updated |
 | 06-agent-prompts | research-base | Who Owns Experience? | ✓ Updated |
-| 05-related-work | research-base | Die Temporalisierung... | ⚠ Needs update |
+| 05-related-work | research-base | Temporalization of Order | ✓ Updated |
 
-### 1.3 Issues Found
+### 1.3 Issues Found and Resolved
 
-**Issue 1: Related Work reference not updated**
-- File: `05-related-work.md` line 197
-- Current: `*Die Temporalisierung von Ordnung*`
-- Should be: Link to research-base
+**Issue 1: Related Work reference** ✓ Fixed
+- Updated link to research-base
 
-**Issue 2: Session notes not defined in data formats**
-- 06-agent-prompts references "session notes" (§1.1, §3.6)
-- 04-data-formats has no schema for session notes
-- Need: Add session notes format to 04-data-formats
+**Issue 2: Session notes schema** ✓ Fixed
+- Added `session_notes.jsonl` schema to 04-data-formats
 
-**Issue 3: Errors.jsonl mentioned but not specified**
-- 03-architecture mentions `errors.jsonl` (line 475)
-- 04-data-formats does not define this file
-- Need: Add errors.jsonl schema or clarify it's part of messages
+**Issue 3: Errors.jsonl** ✓ Fixed
+- Clarified: errors go to messages.jsonl with `error: true` flag
 
 ---
 
