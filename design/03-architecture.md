@@ -160,6 +160,45 @@ def route(msg) -> AgentId | None:
 
 Keywords and threshold are configurable. Can be empty (all goes to Relay).
 
+#### Lock Manager
+
+The Dispatcher owns queue access via a Unix socket lock manager. All writers must acquire a lock before writing to `messages.jsonl`.
+
+**Socket:** `~/.outheis/.dispatcher.sock`
+
+**Priority Scheduling:**
+
+| Priority | Requester | Rationale |
+|----------|-----------|-----------|
+| HIGH (0) | transport | User is waiting |
+| NORMAL (1) | relay, data, agenda, action | Agent work |
+| LOW (2) | pattern | Background processing |
+
+Within each priority class: FIFO.
+
+**Protocol:**
+
+```json
+// Request lock
+→ {"cmd": "request", "requester": "relay"}
+← {"status": "granted"}
+← {"status": "queued", "position": 2}
+
+// Release lock
+→ {"cmd": "release"}
+← {"status": "released"}
+
+// Query status
+→ {"cmd": "status"}
+← {"holder": "client_123", "queue_length": 2, "queue": [...]}
+```
+
+**Behavior:**
+- Lock granted immediately if queue empty
+- On release, next-in-queue is notified
+- Client disconnect → automatic release, cleanup
+- Priorities are architectural, not configurable
+
 ### Web UI (localhost-only)
 
 Simple web interface for configuration. No chat functionality.
