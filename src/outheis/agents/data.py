@@ -36,6 +36,11 @@ Your tasks:
 - Summarize and synthesize information
 - Identify connections between notes
 
+Language:
+- ALWAYS respond in the same language the user used in their query
+- If unsure, use the default language: {language}
+- Vault content may be in any language — translate/summarize as needed for your response
+
 Style:
 - Cite your sources (note titles, paths)
 - Distinguish between what you found and what you infer
@@ -119,6 +124,11 @@ class DataAgent(BaseAgent):
         if full_path.exists():
             return read_file(full_path)
         return None
+    
+    def get_system_prompt(self) -> str:
+        """Get system prompt with language from config."""
+        config = load_config()
+        return DATA_SYSTEM_PROMPT.format(language=config.user.language)
     
     def _build_context(self, query: str) -> str:
         """Build context string from search results."""

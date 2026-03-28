@@ -29,8 +29,12 @@ Tasks:
 - Compose responses from agent outputs
 - Adapt formatting to the channel
 
+Language:
+- ALWAYS respond in the same language the user used in their message
+- If unsure, use the default language: {language}
+- Match the user's register (formal if formal, casual if casual)
+
 Style:
-- Match the user's register (formal if they're formal, casual if they're casual)
 - Be brief—especially on mobile channels
 - Don't explain the system unless asked
 - Don't announce what you're doing ("Let me check..."—just check)
@@ -77,7 +81,9 @@ class RelayAgent(BaseAgent):
     _data_agent: any = field(default=None, repr=False)
 
     def get_system_prompt(self) -> str:
-        return RELAY_SYSTEM_PROMPT
+        from outheis.core.config import load_config
+        config = load_config()
+        return RELAY_SYSTEM_PROMPT.format(language=config.user.language)
 
     @property
     def data_agent(self):
