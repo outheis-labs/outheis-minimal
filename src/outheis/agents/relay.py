@@ -168,7 +168,7 @@ class RelayAgent(BaseAgent):
         tools = [
             {
                 "name": "search_vault",
-                "description": "Search the user's vault (notes, documents, files) for information. Use when you don't know something from memory and need to look it up.",
+                "description": "Search the user's vault (notes, documents, files) for personal information. USE THIS when asked about personal facts you don't know from Memory: where they live, contacts, family details, projects, health info, or anything personal that might be in their notes.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -182,7 +182,7 @@ class RelayAgent(BaseAgent):
             },
             {
                 "name": "check_agenda",
-                "description": "Check the user's schedule/calendar. Use for questions about appointments, availability, what's happening today/tomorrow.",
+                "description": "Check the user's schedule/calendar. Use for questions about appointments, availability, what's happening today/tomorrow/this week.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
