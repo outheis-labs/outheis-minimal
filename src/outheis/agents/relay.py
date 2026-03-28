@@ -43,7 +43,7 @@ def classify_query(client, text: str) -> str:
     import sys
     
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-haiku-4-5",
         max_tokens=10,
         system=ROUTING_PROMPT,
         messages=[{"role": "user", "content": text}],
