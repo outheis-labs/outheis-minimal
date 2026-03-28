@@ -129,6 +129,19 @@ class RelayAgent(BaseAgent):
         if not text:
             return None
 
+        # Check for explicit memory marker "!"
+        from outheis.core.memory import handle_explicit_memory
+        was_memory, memory_response = handle_explicit_memory(text)
+        
+        if was_memory:
+            # Acknowledge memory storage
+            return self.respond(
+                to="transport",
+                payload={"text": memory_response},
+                conversation_id=msg.conversation_id,
+                reply_to=msg.id,
+            )
+
         # Check for delegation
         if self._should_delegate_to_data(text):
             response_text = self._handle_with_data_agent(text, msg)

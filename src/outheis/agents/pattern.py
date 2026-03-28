@@ -30,29 +30,42 @@ Your responsibility: Analyze conversations and extract information worth remembe
 about the user. You maintain the system's persistent memory.
 
 Memory types you manage:
-- user: Personal facts (family, age, location, preferences, background)
-- feedback: How the user wants to be treated (communication style, format preferences)
-- context: Current projects, ongoing topics, recent focus areas
+- user: Personal facts (family, age, location, preferences, background) — PERMANENT
+- feedback: How the user wants to be treated (communication style, format preferences) — PERMANENT
+- context: Current projects, ongoing topics, recent focus areas — TEMPORARY (14 days default)
 
 Your task now: Analyze the following conversation excerpts and extract NEW information
 that should be remembered. Only extract clear, explicit information—not assumptions.
 
 Language: {language}
 
-Rules:
+CRITICAL RULES:
 - Only extract information the user explicitly stated or clearly implied
 - Don't repeat information already in memory
 - Be concise—one fact per entry
-- For "user" type: personal facts, family, preferences, background
-- For "feedback" type: how they want responses (length, tone, format)
-- For "context" type: what they're currently working on, active projects
+
+WHAT TO EXTRACT:
+- user: Facts about who they are (name, age, family, profession, location, interests)
+- feedback: Explicit preferences about how you should work (length, tone, format, language)
+- context: What they're currently working on (with decay_days for temporary relevance)
+
+WHAT NOT TO EXTRACT:
+- Temporary moods or emotional states (frustration, stress, bad day)
+- One-time opinions that don't reflect stable preferences
+- Vague or unclear statements
+- Information already in memory
+
+TEMPORAL AWARENESS:
+- If user mentions being stressed/frustrated/tired, this is NOT a character trait
+- Only extract behavioral patterns if they appear CONSISTENTLY across multiple conversations
+- For context items, suggest appropriate decay_days (7-30 depending on nature)
 
 Respond in JSON format:
 {{
   "extractions": [
     {{"type": "user", "content": "User is 35 years old", "confidence": 0.9}},
     {{"type": "feedback", "content": "Prefers short, direct answers", "confidence": 0.8}},
-    {{"type": "context", "content": "Working on Project Alpha mobile app", "confidence": 1.0}}
+    {{"type": "context", "content": "Working on Project Alpha mobile app", "confidence": 1.0, "decay_days": 30}}
   ],
   "reasoning": "Brief explanation of what you found"
 }}
@@ -152,10 +165,21 @@ class PatternAgent(BaseAgent):
             memory_type = extraction.get("type")
             content = extraction.get("content")
             confidence = extraction.get("confidence", 0.8)
+            decay_days = extraction.get("decay_days")  # Optional
             
             if memory_type in ["user", "feedback", "context"] and content:
-                store.add(content, memory_type, confidence)
+                store.add(
+                    content,
+                    memory_type,
+                    confidence=confidence,
+                    decay_days=decay_days,
+                )
                 count += 1
+        
+        # Also cleanup expired entries
+        expired = store.cleanup_expired()
+        if expired > 0:
+            print(f"[Pattern] Cleaned up {expired} expired memory entries")
         
         return count
     

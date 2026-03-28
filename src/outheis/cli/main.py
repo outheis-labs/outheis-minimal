@@ -339,8 +339,23 @@ def memory(
         entries = store.get(memory_type)
         typer.echo(f"\n[{memory_type}] ({len(entries)} entries)")
         for i, entry in enumerate(entries):
-            conf = f" ({entry.confidence:.0%})" if entry.confidence < 1.0 else ""
-            typer.echo(f"  {i+1}. {entry.content}{conf}")
+            # Build status indicators
+            markers = []
+            if entry.is_explicit:
+                markers.append("!")
+            if entry.confidence < 1.0:
+                markers.append(f"{entry.confidence:.0%}")
+            if entry.decay_days:
+                from datetime import datetime, timedelta
+                expiry = entry.updated_at + timedelta(days=entry.decay_days)
+                days_left = (expiry - datetime.now()).days
+                if days_left > 0:
+                    markers.append(f"↓{days_left}d")
+                else:
+                    markers.append("expired")
+            
+            status = f" [{', '.join(markers)}]" if markers else ""
+            typer.echo(f"  {i+1}. {entry.content}{status}")
     
     typer.echo()
 
