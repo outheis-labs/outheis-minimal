@@ -205,9 +205,9 @@ class RelayAgent(BaseAgent):
                 messages.append({"role": "assistant", "content": msg.payload.get("text", "")})
         messages.append({"role": "user", "content": text})
         
-        # First call - may use tools
+        # First call with Haiku - fast tool decision
         response = self.client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-haiku-4-5",
             max_tokens=1024,
             system=self.get_system_prompt(),
             messages=messages,
@@ -215,6 +215,7 @@ class RelayAgent(BaseAgent):
         )
         
         # Check if tool use is needed
+        if response.stop_reason == "tool_use":
         if response.stop_reason == "tool_use":
             # Process tool calls
             tool_results = []
@@ -247,12 +248,12 @@ class RelayAgent(BaseAgent):
                         "content": result,
                     })
             
-            # Second call with tool results
+            # Second call with tool results - Haiku for speed
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
             
             final_response = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-haiku-4-5",
                 max_tokens=1024,
                 system=self.get_system_prompt(),
                 messages=messages,
