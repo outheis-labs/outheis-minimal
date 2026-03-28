@@ -34,7 +34,7 @@ from outheis.core.config import (
     load_config,
 )
 from outheis.core.message import Message
-from outheis.core.queue import append, get_last_id, read_from
+from outheis.core.queue import append, get_last_id, get_unanswered_requests, read_from
 from outheis.dispatcher.router import get_dispatch_target
 from outheis.dispatcher.watcher import QueueWatcher
 
@@ -326,7 +326,14 @@ class Dispatcher:
         if recovered:
             print(f"Recovered {recovered} pending message(s)")
 
-        # Start from where we left off (skip already processed messages)
+        # Process any unanswered requests (crashed before response)
+        unanswered = get_unanswered_requests(self.queue_path)
+        if unanswered:
+            print(f"Processing {len(unanswered)} unanswered request(s)...")
+            for msg in unanswered:
+                self.process_message(msg)
+
+        # Start from last message for new ones
         self.last_processed_id = get_last_id(self.queue_path)
 
         # Start lock manager
