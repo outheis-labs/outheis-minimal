@@ -1,5 +1,7 @@
 ---
 title: Architecture
+---
+
 # Architecture
 
 *How the pieces fit together.*
@@ -11,8 +13,8 @@ title: Architecture
 │              Dispatcher                  │
 │            (Microkernel)                 │
 │  ┌─────────┐ ┌─────────┐ ┌───────────┐  │
-│  │ Router  │ │  Lock   │ │ Lifecycle │  │
-│  │         │ │ Manager │ │  Manager  │  │
+│  │ Router  │ │  Lock   │ │ Scheduler │  │
+│  │         │ │ Manager │ │           │  │
 │  └─────────┘ └─────────┘ └───────────┘  │
 └─────────────────┬───────────────────────┘
                   │
@@ -21,13 +23,12 @@ title: Architecture
 ┌───────┐    ┌───────┐    ┌───────┐
 │  ou   │    │ zeno  │    │ rumi  │
 │ relay │    │ data  │    │pattern│
-└───┬───┘    └───┬───┘    └───────┘
-    │            │
-    ▼            ▼
-┌─────────────────────────────────────────┐
-│                  LLM                     │
-│         (Anthropic API / local)          │
-└─────────────────────────────────────────┘
+└───┬───┘    └───┬───┘    └───┬───┘
+    │            │             │
+    ▼            ▼             ▼
+┌─────────┐  ┌───────┐   ┌────────┐
+│   LLM   │  │ Vault │   │ Memory │
+└─────────┘  └───────┘   └────────┘
 ```
 
 ## Dispatcher
@@ -35,7 +36,7 @@ title: Architecture
 The dispatcher is the microkernel. It:
 - **Routes** messages to the appropriate agent
 - **Manages locks** for shared resources
-- **Supervises** agent lifecycle
+- **Schedules** periodic tasks (pattern analysis, index rebuild)
 - **Recovers** pending operations on startup
 
 The dispatcher contains no LLM calls. It's deterministic, testable, fast.
@@ -44,17 +45,31 @@ The dispatcher contains no LLM calls. It's deterministic, testable, fast.
 
 Five agents, each with a name and role:
 
-| Role | Name | Trigger |
-|------|------|---------|
-| relay | ou | Default — handles conversation |
-| data | zeno | "search", "find", "vault", @zeno |
-| agenda | cato | "schedule", "tomorrow", @cato |
-| action | hiro | "send", "execute", @hiro |
-| pattern | rumi | Scheduled, background |
+| Role | Name | Trigger | Reads | Writes |
+|------|------|---------|-------|--------|
+| relay | ou | Default — conversation | Memory | Messages |
+| data | zeno | "search", "find", @zeno | Vault, Memory | — |
+| agenda | cato | "schedule", @cato | Vault | Vault |
+| action | hiro | "send", "execute", @hiro | — | External |
+| pattern | rumi | Scheduled (04:00) | Messages | Memory |
 
-Agents are stateless between invocations. All persistent state lives in the vault or message queue.
+Agents are stateless between invocations. All persistent state lives in Memory, Vault, or the message queue.
 
-## Vault
+## Knowledge Stores
+
+### Memory
+
+Meta-knowledge about the user:
+
+| Type | Purpose | Decay |
+|------|---------|-------|
+| `user` | Personal facts | Permanent |
+| `feedback` | Working preferences | Permanent |
+| `context` | Current focus | 14 days |
+
+See [Memory](../memory/) for details.
+
+### Vault
 
 The vault is a directory of Markdown files with YAML frontmatter:
 
@@ -93,16 +108,26 @@ Append-only. Versioned. Recoverable.
     ├── config.json       # Configuration
     ├── messages.jsonl    # Message queue
     ├── insights.jsonl    # Extracted patterns
-    ├── session_notes.jsonl
-    ├── tag-weights.jsonl
+    ├── memory/           # Persistent memory
+    │   ├── user.json
+    │   ├── feedback.json
+    │   └── context.json
     ├── .pending/         # Write-ahead log
     ├── vault/            # Primary vault
     └── rules/            # User-defined rules
 ```
 
+## Scheduled Tasks
+
+The dispatcher runs periodic tasks via built-in scheduler:
+
+| Task | Time | Purpose |
+|------|------|---------|
+| `pattern` | 04:00 | Extract memories from conversations |
+| `index_rebuild` | 04:30 | Rebuild vault search indices |
+| `archive_rotation` | 05:00 | Archive old messages |
+
 ## Further Reading
 
-- [Data Formats](../design/04-data-formats.md)
-- [Agent Prompts](../design/06-agent-prompts.md)
-
-
+- [Memory](../memory/) — How persistent memory works
+- [Philosophy](../philosophy/) — Why this architecture
