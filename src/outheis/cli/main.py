@@ -97,9 +97,9 @@ def send(
     msg = transport.send(message)
 
     # Wait for response with progress indicator
-    # outheis breathing circle: ⊙ → ◎ → ○ → ◦ → ○ → ◎ → ⊙
+    # outheis breathing circle: ○ → ◎ → ◦ → · → ◦ → ◎
     start = time.time()
-    spinner = ['⊙', '◎', '○', '◦', '○', '◎', '⊙']
+    spinner = ['○', '◎', '◦', '·', '◦', '◎']
     spinner_idx = 0
     
     while time.time() - start < timeout:
