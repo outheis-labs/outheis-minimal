@@ -97,9 +97,9 @@ def send(
     msg = transport.send(message)
 
     # Wait for response with progress indicator
-    # outheis circle: rotating notch positions
+    # outheis breathing circle: largest → middle → smallest → middle
     start = time.time()
-    spinner = ['◜', '◝', '◞', '◟']
+    spinner = ['◎', '⊙', '○', '⊙']
     spinner_idx = 0
     
     while time.time() - start < timeout:
