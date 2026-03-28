@@ -5,11 +5,10 @@ title: outheis
 # οὐθείς
 
 *Nobody — and everybody who refuses to be captured.*
-{: .lead}
 
 ---
 
-A multi-agent AI assistant built on proven operating system principles. Conceived for both personal assistant mode (1:1) and domain expert mode (many:1).
+A multi-agent AI assistant built on proven operating system principles.
 
 ---
 
@@ -21,14 +20,10 @@ Five agents coordinate through messages. Your knowledge stays in a local vault. 
 
 ---
 
-## Key topics
+## Documentation
 
-Why sovereignty matters — the problem with captured cognition. [Philosophy →](philosophy/)
+**[Philosophy](philosophy/)** — Why sovereignty matters. The problem with captured cognition.
 
-OS principles applied to agents — message passing, supervision. [Theory →](theory/)
+**[Design](design/)** — OS principles applied to agents. Architecture specification, data formats, agent prompts.
 
-Dispatcher, agents, vault — how the pieces fit together. [Architecture →](architecture/)
-
-Lock management, write-ahead logging, schema versioning. [Implementation →](implementation/)
-
-Installation, CLI, configuration — getting started. [Guide →](guide/)
+**[Implementation](implementation/)** — Current state. How to install, configure, and use outheis.

@@ -13,28 +13,29 @@ title: Architecture
 │              Dispatcher                  │
 │            (Microkernel)                 │
 │  ┌─────────┐ ┌─────────┐ ┌───────────┐  │
-│  │ Router  │ │  Lock   │ │ Scheduler │  │
+│  │ Watcher │ │  Lock   │ │ Scheduler │  │
 │  │         │ │ Manager │ │           │  │
 │  └─────────┘ └─────────┘ └───────────┘  │
 └─────────────────┬───────────────────────┘
                   │
-    ┌─────────────┼─────────────┐
-    ▼             ▼             ▼
-┌───────┐    ┌───────┐    ┌───────┐
-│  ou   │    │ zeno  │    │ rumi  │
-│ relay │    │ data  │    │pattern│
-└───┬───┘    └───┬───┘    └───┬───┘
-    │            │             │
-    ▼            ▼             ▼
-┌─────────┐  ┌───────┐   ┌────────┐
-│   LLM   │  │ Vault │   │ Memory │
-└─────────┘  └───────┘   └────────┘
+    ┌─────────────┼─────────────┬─────────────┐
+    ▼             ▼             ▼             ▼
+┌───────┐    ┌───────┐    ┌───────┐    ┌───────┐
+│  ou   │    │ zeno  │    │ cato  │    │ rumi  │
+│ relay │    │ data  │    │agenda │    │pattern│
+└───┬───┘    └───┬───┘    └───┬───┘    └───┬───┘
+    │            │             │             │
+    ▼            ▼             ▼             ▼
+┌─────────┐  ┌───────┐   ┌────────┐   ┌────────┐
+│   LLM   │  │ Vault │   │ Agenda │   │ Memory │
+│ (Haiku) │  │       │   │  dir   │   │        │
+└─────────┘  └───────┘   └────────┘   └────────┘
 ```
 
 ## Dispatcher
 
 The dispatcher is the microkernel. It:
-- **Routes** messages to the appropriate agent
+- **Watches** the message queue for changes
 - **Manages locks** for shared resources
 - **Schedules** periodic tasks (pattern analysis, index rebuild)
 - **Recovers** pending operations on startup
@@ -45,15 +46,23 @@ The dispatcher contains no LLM calls. It's deterministic, testable, fast.
 
 Five agents, each with a name and role:
 
-| Role | Name | Trigger | Reads | Writes |
-|------|------|---------|-------|--------|
-| relay | ou | Default — conversation | Memory | Messages |
-| data | zeno | "search", "find", @zeno | Vault, Memory | — |
-| agenda | cato | "schedule", @cato | Vault | Vault |
-| action | hiro | "send", "execute", @hiro | — | External |
+| Role | Name | When used | Reads | Writes |
+|------|------|-----------|-------|--------|
+| relay | ou | All messages — decides routing | Memory, Context | Messages |
+| data | zeno | Vault search (via tool) | Vault, Memory | — |
+| agenda | cato | Schedule queries (via tool) | Agenda/ | Agenda/ |
+| action | hiro | External actions (future) | — | External |
 | pattern | rumi | Scheduled (04:00) | Messages | Memory |
 
-Agents are stateless between invocations. All persistent state lives in Memory, Vault, or the message queue.
+### Routing
+
+Relay (ou) handles all user messages. It uses Haiku with tools:
+- **search_vault** → delegates to Data agent (zeno)
+- **check_agenda** → delegates to Agenda agent (cato)
+
+No separate classification step. Relay decides intelligently based on the question and Memory.
+
+Explicit mentions (@zeno, @cato) still work for direct delegation.
 
 ## Knowledge Stores
 
@@ -67,7 +76,7 @@ Meta-knowledge about the user:
 | `feedback` | Working preferences | Permanent |
 | `context` | Current focus | 14 days |
 
-See [Memory](../memory/) for details.
+Stored in `~/.outheis/human/memory/`. See [Memory](memory.md) for details.
 
 ### Vault
 
@@ -85,15 +94,15 @@ vault/
     └── *.md
 ```
 
-The Data agent maintains a search index. Tags emerge through co-occurrence analysis by the Pattern agent.
+The Data agent maintains a search index.
 
 ## Message Queue
 
 All communication flows through `messages.jsonl`:
 
 ```json
-{"v":1,"id":"msg_abc","ts":"...","role":"user","content":"..."}
-{"v":1,"id":"msg_def","ts":"...","role":"assistant","agent":"relay","content":"..."}
+{"v":1,"id":"msg_abc","conversation_id":"conv_xyz","to":"dispatcher",...}
+{"v":1,"id":"msg_def","conversation_id":"conv_xyz","to":"transport",...}
 ```
 
 Append-only. Versioned. Recoverable.
@@ -107,7 +116,6 @@ Append-only. Versioned. Recoverable.
 └── human/
     ├── config.json       # Configuration
     ├── messages.jsonl    # Message queue
-    ├── insights.jsonl    # Extracted patterns
     ├── memory/           # Persistent memory
     │   ├── user.json
     │   ├── feedback.json
@@ -129,5 +137,5 @@ The dispatcher runs periodic tasks via built-in scheduler:
 
 ## Further Reading
 
-- [Memory](../memory/) — How persistent memory works
+- [Memory](memory.md) — How persistent memory works
 - [Philosophy](../philosophy/) — Why this architecture

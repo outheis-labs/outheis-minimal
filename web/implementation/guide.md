@@ -1,5 +1,7 @@
 ---
 title: Guide
+---
+
 # Guide
 
 *Getting started with outheis.*
@@ -7,14 +9,14 @@ title: Guide
 ## Requirements
 
 - Python 3.11+
-- Anthropic API key (for now — local LLM support planned)
+- Anthropic API key
 
 ## Installation
 
 ```bash
 git clone https://github.com/outheis-labs/outheis-minimal.git
 cd outheis-minimal
-pip install -e ".[dev,watch]"
+pip install -e ".[dev]"
 ```
 
 ## Setup
@@ -35,7 +37,7 @@ Edit `~/.outheis/human/config.json`:
     "name": "your-name",
     "language": "en",
     "timezone": "Europe/Berlin",
-    "vaults": ["~/notes"]
+    "vault": ["~/Documents/Vault"]
   }
 }
 ```
@@ -47,6 +49,7 @@ Edit `~/.outheis/human/config.json`:
 ```bash
 outheis start       # Start dispatcher (background)
 outheis start -f    # Start in foreground
+outheis start -fv   # Foreground + verbose (shows tool calls)
 outheis stop        # Stop dispatcher
 outheis status      # Show status, PID, uptime
 ```
@@ -56,30 +59,43 @@ outheis status      # Show status, PID, uptime
 ```bash
 outheis send "Hello"              # Single message
 outheis send "@zeno find notes"   # Direct to Data agent
-outheis chat                      # Interactive mode
+outheis chat                      # Interactive mode (with history)
 ```
 
-### Maintenance
+### Memory
 
 ```bash
-outheis pattern              # Run Pattern agent manually
-outheis pattern --dry-run    # Preview without changes
-outheis migrate --scan       # Check schema versions
+outheis memory              # Show all memories
+outheis memory --type user  # Show only user facts
 ```
 
-## Agents
+### Rules
 
-Address agents directly with `@name`:
+```bash
+outheis rules         # Show all rules (system + user)
+outheis rules relay   # Show relay agent rules
+```
+
+## Talking to outheis
+
+Just talk naturally. Relay decides when to use tools:
+
+| You say | What happens |
+|---------|--------------|
+| "hi" | Direct response |
+| "was steht heute an?" | Uses check_agenda tool → Agenda agent |
+| "wo wohne ich?" | Uses search_vault tool → Data agent |
+| "! ich bin 54" | Saves to Memory (explicit marker) |
+
+### Explicit Agent Mentions
+
+Use `@name` for direct delegation:
 
 | Mention | Agent | Use for |
 |---------|-------|---------|
-| @ou | Relay | General conversation |
-| @zeno | Data | Search vault, find notes |
-| @cato | Agenda | Schedule, calendar |
-| @hiro | Action | External actions |
-| @rumi | Pattern | Insight review |
-
-Without explicit mention, routing is automatic based on keywords.
+| @zeno | Data | Search vault explicitly |
+| @cato | Agenda | Schedule queries |
+| @hiro | Action | External actions (future) |
 
 ## Vault
 
@@ -90,20 +106,19 @@ Your vault is a directory of Markdown files:
 title: Project Alpha
 tags: [active, client-work]
 created: 2025-01-15
+---
 # Project Alpha
 
 Status update...
 ```
-
-The Data agent indexes and searches. Tags emerge over time through the Pattern agent's analysis.
 
 ### Recommended Structure
 
 ```
 vault/
 ├── Agenda/
-│   ├── Daily.md      # Today
-│   ├── Inbox.md      # Capture
+│   ├── Daily.md      # Today's schedule
+│   ├── Inbox.md      # Unprocessed items
 │   └── Exchange.md   # External sync
 ├── projects/
 ├── notes/
@@ -120,17 +135,10 @@ vault/
     "name": "string",
     "language": "en|de|...",
     "timezone": "Region/City",
-    "vaults": ["~/path/to/vault"]
-  },
-  "routing": {
-    "threshold": 0.3,
-    "data": ["search", "find", "vault"],
-    "agenda": ["schedule", "tomorrow"],
-    "action": ["send", "execute"]
+    "vault": ["~/path/to/vault"]
   },
   "llm": {
-    "provider": "anthropic",
-    "model": "claude-sonnet-4-20250514"
+    "provider": "anthropic"
   }
 }
 ```
@@ -158,4 +166,10 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 # Or add to ~/.bashrc / ~/.zshrc
 ```
 
+### macOS: Daemon won't start in background
 
+Use foreground mode:
+
+```bash
+outheis start -f &
+```
