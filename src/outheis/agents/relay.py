@@ -216,7 +216,6 @@ class RelayAgent(BaseAgent):
         
         # Check if tool use is needed
         if response.stop_reason == "tool_use":
-        if response.stop_reason == "tool_use":
             # Process tool calls
             tool_results = []
             for block in response.content:
