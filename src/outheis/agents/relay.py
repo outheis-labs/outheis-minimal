@@ -14,56 +14,6 @@ from outheis.core.message import Message
 
 
 # =============================================================================
-# ROUTING
-# =============================================================================
-
-ROUTING_PROMPT = """You are a routing classifier for a personal AI assistant.
-
-Classify where the message should be handled:
-
-- "data" — User explicitly wants to SEARCH their vault/notes/documents. Keywords: "search", "find", "in my notes", "suche", "notizen", "dokumente"
-- "agenda" — Schedule questions: "was steht heute an?", "termine morgen?", "bin ich frei am..."
-- "relay" — Everything else: personal questions, preferences, conversation, explanations
-
-Respond with exactly one word: data, agenda, or relay
-
-Examples:
-- "suche in meinen notizen" → data
-- "find my notes about X" → data
-- "was steht heute an?" → agenda
-- "bin ich morgen frei?" → agenda
-- "wie heisse ich?" → relay
-- "wo wohne ich?" → relay
-- "was trinke ich gerne?" → relay"""
-
-
-def classify_query(client, text: str) -> str:
-    """Use Haiku to classify where a query should be routed."""
-    import os
-    import sys
-    
-    response = client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=10,
-        system=ROUTING_PROMPT,
-        messages=[{"role": "user", "content": text}],
-    )
-    
-    raw = response.content[0].text.strip()
-    classification = raw.lower()
-    
-    # Debug output (only if verbose)
-    if os.environ.get("OUTHEIS_VERBOSE"):
-        print(f"[route: {classification}]", file=sys.stderr)
-    
-    # Validate response - only agenda goes direct, everything else to relay
-    if classification == "agenda":
-        return "agenda"
-    
-    return "relay"
-
-
-# =============================================================================
 # RELAY AGENT
 # =============================================================================
 
@@ -130,33 +80,6 @@ class RelayAgent(BaseAgent):
             self._agenda_agent = create_agenda_agent()
         return self._agenda_agent
 
-    def _route_query(self, text: str) -> str:
-        """Determine where to route a query using LLM classification."""
-        import os
-        import sys
-        
-        verbose = os.environ.get("OUTHEIS_VERBOSE")
-        text_lower = text.lower()
-        
-        # Explicit agent mentions override classification
-        if "@zeno" in text_lower:
-            if verbose:
-                print("[route: data (@zeno)]", file=sys.stderr)
-            return "data"
-        if "@cato" in text_lower:
-            if verbose:
-                print("[route: agenda (@cato)]", file=sys.stderr)
-            return "agenda"
-        
-        # Use Haiku to classify
-        try:
-            route = classify_query(self.client, text)
-            return route
-        except Exception as e:
-            if verbose:
-                print(f"[route error: {e}]", file=sys.stderr)
-            return "relay"
-
     def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message."""
         import os
@@ -180,20 +103,18 @@ class RelayAgent(BaseAgent):
                 reply_to=msg.id,
             )
 
-        # Route query using LLM classification
-        route = self._route_query(text)
-        
-        if route == "agenda":
+        # Check for explicit agent mentions (@zeno, @cato)
+        text_lower = text.lower()
+        if "@zeno" in text_lower:
             if verbose:
-                print("[delegating to agenda]", file=sys.stderr)
-            response_text = self._handle_with_agenda_agent(text, msg)
-        elif route == "data":
-            if verbose:
-                print("[delegating to data]", file=sys.stderr)
+                print("[explicit @zeno → data]", file=sys.stderr)
             response_text = self._handle_with_data_agent(text, msg)
-        else:
+        elif "@cato" in text_lower:
             if verbose:
-                print("[handling directly]", file=sys.stderr)
+                print("[explicit @cato → agenda]", file=sys.stderr)
+            response_text = self._handle_with_agenda_agent(text, msg)
+        else:
+            # Let Relay handle with tools - it decides when to delegate
             context = self.get_conversation_context(msg.conversation_id)
             response_text = self._generate_response(text, context, msg)
 
