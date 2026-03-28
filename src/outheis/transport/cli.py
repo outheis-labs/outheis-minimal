@@ -43,6 +43,24 @@ class CLITransport:
 
         return msg
 
+    def check_for_response(self, message_id: str) -> Message | None:
+        """
+        Check once for a response to a message.
+        
+        Non-blocking single check.
+        """
+        messages = read_last_n(self.queue_path, 10)
+
+        for msg in messages:
+            if (
+                msg.reply_to == message_id
+                and msg.to == "transport"
+                and msg.from_agent
+            ):
+                return msg
+
+        return None
+
     def wait_for_response(
         self,
         message_id: str,

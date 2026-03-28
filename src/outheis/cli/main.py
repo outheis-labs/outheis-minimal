@@ -78,9 +78,12 @@ def stop() -> None:
 @app.command()
 def send(
     message: str = typer.Argument(..., help="Message to send"),
-    timeout: float = typer.Option(30.0, "--timeout", "-t", help="Response timeout in seconds"),
+    timeout: float = typer.Option(60.0, "--timeout", "-t", help="Response timeout in seconds"),
 ) -> None:
     """Send a message and wait for response."""
+    import sys
+    import time
+    
     from outheis.dispatcher.daemon import daemon_status
     from outheis.transport.cli import CLITransport
 
@@ -93,20 +96,38 @@ def send(
     transport = CLITransport()
     msg = transport.send(message)
 
-    typer.echo(f"Sent: {msg.id[:8]}...")
-
-    # Wait for response from dispatcher
-    response = transport.wait_for_response(msg.id, timeout=timeout)
-
-    if response:
-        # Handle different response formats (text from relay, answer from data)
-        text = response.payload.get('text') or response.payload.get('answer', '')
-        if response.payload.get('error'):
-            typer.echo(f"[Error: {text}]")
-        else:
-            typer.echo(text)
-    else:
-        typer.echo("[no response within timeout]")
+    # Wait for response with progress indicator
+    start = time.time()
+    spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    spinner_idx = 0
+    
+    while time.time() - start < timeout:
+        # Check for response
+        response = transport.check_for_response(msg.id)
+        if response:
+            # Clear spinner line
+            sys.stdout.write('\r' + ' ' * 40 + '\r')
+            sys.stdout.flush()
+            
+            # Display response
+            text = response.payload.get('text') or response.payload.get('answer', '')
+            if response.payload.get('error'):
+                typer.echo(f"[Error: {text}]")
+            else:
+                typer.echo(text)
+            return
+        
+        # Show spinner with elapsed time
+        elapsed = int(time.time() - start)
+        sys.stdout.write(f'\r{spinner[spinner_idx]} Waiting for response... ({elapsed}s)')
+        sys.stdout.flush()
+        spinner_idx = (spinner_idx + 1) % len(spinner)
+        time.sleep(0.1)
+    
+    # Timeout
+    sys.stdout.write('\r' + ' ' * 40 + '\r')
+    sys.stdout.flush()
+    typer.echo("[no response within timeout]")
 
 
 @app.command()
