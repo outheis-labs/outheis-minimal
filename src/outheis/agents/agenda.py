@@ -31,9 +31,9 @@ EXCHANGE_FILE = "Exchange.md"
 def get_agenda_dir() -> Path | None:
     """Get the Agenda directory from the primary vault."""
     config = load_config()
-    vault = config.user.vault
-    if vault:
-        agenda_path = Path(vault) / AGENDA_DIR
+    vault = config.user.primary_vault()
+    if vault.exists():
+        agenda_path = vault / AGENDA_DIR
         if agenda_path.exists():
             return agenda_path
     return None
@@ -143,7 +143,7 @@ User query: {query}
 
 ---
 
-Respond helpfully based on the agenda information. If the user wants to modify the schedule, describe what changes you would make. Be concise."""
+Respond helpfully based on the agenda information. If the user wants to modify the schedule, describe what changes you would make. Be concise. Match the language of the user's query."""
 
         response = self.client.messages.create(
             model="claude-sonnet-4-20250514",
