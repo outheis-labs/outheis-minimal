@@ -1,7 +1,3 @@
----
-title: "Design"
----
-
 # Design
 
 *Technical foundations — the conceptual architecture before code.*

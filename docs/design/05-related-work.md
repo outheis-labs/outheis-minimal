@@ -1,7 +1,3 @@
----
-title: "Related Work"
----
-
 # Related Work
 
 This document surveys existing research on applying operating system principles to AI agent architectures.

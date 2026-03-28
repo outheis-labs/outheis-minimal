@@ -1,7 +1,3 @@
----
-title: "Why Operating System Principles Apply to Agent Architectures"
----
-
 # Why Operating System Principles Apply to Agent Architectures
 
 ## The Problem

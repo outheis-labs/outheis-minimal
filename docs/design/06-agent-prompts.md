@@ -1,7 +1,3 @@
----
-title: "Agent Prompts and Communication Rules"
----
-
 # Agent Prompts and Communication Rules
 
 This document specifies how agents communicate—with users, with each other, and with themselves. All prompts are published for transparency.

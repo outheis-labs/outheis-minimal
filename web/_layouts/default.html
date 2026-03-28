@@ -58,6 +58,15 @@
       align-self: flex-start;
     }
     
+    .sidebar-logo-link {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      text-decoration: none;
+      margin-bottom: 2rem;
+    }
+    
     .sidebar-logo {
       display: block;
       width: 120px;
@@ -71,7 +80,6 @@
       font-weight: 600;
       letter-spacing: 0.02em;
       color: var(--color-text);
-      margin-bottom: 2rem;
     }
     
     .sidebar-nav {
@@ -310,8 +318,8 @@
     <aside class="sidebar">
       <a href="{{ '/' | relative_url }}" class="sidebar-logo-link">
         <img src="{{ '/assets/logo.svg' | relative_url }}" alt="outheis" class="sidebar-logo">
+        <span class="sidebar-title">outheis</span>
       </a>
-      <div class="sidebar-title">outheis</div>
       <nav>
         <ul class="sidebar-nav">
           <li><a href="{{ '/' | relative_url }}" class="{% if page.url == '/' %}active{% endif %}">Home</a></li>
@@ -329,9 +337,9 @@
           <li><a href="{{ '/design/06-agent-prompts' | relative_url }}" class="{% if page.url contains '06-agent' %}active{% endif %}">Agent Prompts</a></li>
           
           <li class="nav-section">Implementation</li>
-          <li><a href="{{ '/architecture/' | relative_url }}" class="{% if page.url contains '/architecture' %}active{% endif %}">Current State</a></li>
-          <li><a href="{{ '/memory/' | relative_url }}" class="{% if page.url contains '/memory' %}active{% endif %}">Memory & Rules</a></li>
-          <li><a href="{{ '/guide/' | relative_url }}" class="{% if page.url contains '/guide' %}active{% endif %}">CLI Guide</a></li>
+          <li><a href="{{ '/implementation/architecture' | relative_url }}" class="{% if page.url contains '/implementation/architecture' %}active{% endif %}">Current State</a></li>
+          <li><a href="{{ '/implementation/memory' | relative_url }}" class="{% if page.url contains '/implementation/memory' %}active{% endif %}">Memory & Rules</a></li>
+          <li><a href="{{ '/implementation/guide' | relative_url }}" class="{% if page.url contains '/implementation/guide' %}active{% endif %}">CLI Guide</a></li>
           
           <li class="nav-section"></li>
           <li><a href="https://github.com/outheis-labs/outheis-minimal" class="nav-external">GitHub ↗</a></li>
