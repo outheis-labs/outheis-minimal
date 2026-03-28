@@ -21,9 +21,9 @@ ROUTING_PROMPT = """You are a routing classifier for a personal AI assistant.
 
 The user has sent a message. Classify where it should be handled:
 
-- "data" — Questions about the user's personal information stored in their vault (notes, documents, contacts, addresses, health info, projects, family, anything the user has written down)
+- "data" — Questions about information stored in the user's vault (notes, documents, contacts, addresses, health info, projects, family, anything the user has written down in files)
 - "agenda" — Questions about schedule, calendar, appointments, what's happening today/tomorrow, availability
-- "relay" — General conversation, questions you can answer directly, chitchat, requests that don't need personal data
+- "relay" — General conversation, questions about the user's identity/name (we know that), chitchat, requests that don't need vault data
 
 Respond with exactly one word: data, agenda, or relay
 
@@ -33,6 +33,8 @@ Examples:
 - "erzähl mir was über meine projekte" → data
 - "was steht heute an?" → agenda
 - "bin ich morgen frei?" → agenda
+- "wie heisse ich?" → relay
+- "what's my name?" → relay
 - "wie geht es dir?" → relay
 - "erkläre mir was über Python" → relay
 - "was ist die hauptstadt von frankreich?" → relay"""

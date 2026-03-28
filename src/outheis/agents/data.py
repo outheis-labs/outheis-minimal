@@ -155,7 +155,7 @@ VAULT SEARCH RESULTS:
 USER QUERY:
 {query}
 
-Based on the vault contents above, answer the user's query. If the information isn't in the vault, say so clearly."""
+Based on the vault contents above, answer the user's query. If the information isn't in the vault, say so clearly. Match the language of the user's query."""
 
         try:
             response = self.client.messages.create(
@@ -201,7 +201,7 @@ VAULT SEARCH RESULTS:
 USER QUERY:
 {query}
 
-Based on the vault contents above, answer the user's query. If the information isn't in the vault, say so clearly."""
+Based on the vault contents above, answer the user's query. If the information isn't in the vault, say so clearly. Match the language of the user's query."""
 
         try:
             response = self.client.messages.create(
