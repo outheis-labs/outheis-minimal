@@ -132,23 +132,30 @@ class RelayAgent(BaseAgent):
 
     def _route_query(self, text: str) -> str:
         """Determine where to route a query using LLM classification."""
+        import sys
+        
         text_lower = text.lower()
         
         # Explicit agent mentions override classification
         if "@zeno" in text_lower:
+            print("[route: data (@zeno)]", file=sys.stderr)
             return "data"
         if "@cato" in text_lower:
+            print("[route: agenda (@cato)]", file=sys.stderr)
             return "agenda"
         
         # Use Haiku to classify
         try:
-            return classify_query(self.client, text)
-        except Exception:
-            # On error, default to relay
+            route = classify_query(self.client, text)
+            return route
+        except Exception as e:
+            print(f"[route error: {e}]", file=sys.stderr)
             return "relay"
 
     def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message."""
+        import sys
+        
         text = msg.payload.get("text", "")
 
         if not text:
@@ -170,11 +177,13 @@ class RelayAgent(BaseAgent):
         route = self._route_query(text)
         
         if route == "agenda":
+            print("[delegating to agenda]", file=sys.stderr)
             response_text = self._handle_with_agenda_agent(text, msg)
         elif route == "data":
+            print("[delegating to data]", file=sys.stderr)
             response_text = self._handle_with_data_agent(text, msg)
         else:
-            # Handle directly
+            print("[handling directly]", file=sys.stderr)
             context = self.get_conversation_context(msg.conversation_id)
             response_text = self._generate_response(text, context, msg)
 
