@@ -204,12 +204,16 @@ class RelayAgent(BaseAgent):
 
     def _handle_with_agenda_agent(self, text: str, msg: Message) -> str:
         """Delegate to Agenda agent and format response."""
+        from outheis.core.message import generate_id
+        
         try:
             agenda_msg = Message(
+                id=generate_id(),
                 to="agenda",
-                type="query",
+                type="request",
                 payload={"text": text},
                 conversation_id=msg.conversation_id,
+                from_agent="relay",
             )
             response = self.agenda_agent.handle(agenda_msg)
             if response:
