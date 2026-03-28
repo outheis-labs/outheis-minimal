@@ -12,11 +12,21 @@ from dataclasses import dataclass, field
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
 
-# Keywords that suggest vault queries
+# Keywords that suggest vault queries (personal data, facts about the user)
 VAULT_KEYWORDS = [
+    # Explicit vault terms
     "vault", "note", "notes", "document", "find", "search",
     "what do i have", "my files", "my notes", "look up",
     "in my", "did i write", "where is", "show me",
+    # Personal data questions
+    "wo wohne", "where do i live", "my address", "meine adresse",
+    "my phone", "meine nummer", "my email", "meine email",
+    "my doctor", "mein arzt", "my allergies", "meine allergien",
+    "my projects", "meine projekte",
+    "wie heisse", "what is my name", "what's my name",
+    "my birthday", "mein geburtstag",
+    "my family", "meine familie", "my wife", "my husband", "my children",
+    "meine frau", "mein mann", "meine kinder",
 ]
 
 # Keywords that suggest agenda/schedule queries
@@ -55,8 +65,12 @@ class RelayAgent(BaseAgent):
         rules = load_rules("relay")
         memory_context = get_memory_context()
         
-        # Combine rules with memory and language setting
+        # Combine rules with user context
         prompt_parts = [rules]
+        
+        # Add user identity
+        if config.user.name:
+            prompt_parts.append(f"# User\n\nThe user's name is {config.user.name}.")
         
         if memory_context:
             prompt_parts.append(memory_context)
