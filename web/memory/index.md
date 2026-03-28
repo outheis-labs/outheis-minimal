@@ -64,13 +64,13 @@ Examples:
 Prefix any message with `!` to store it immediately:
 
 ```
-! ich bin 35 jahre alt
+! I am 35 years old
 → Stored in user memory
 
-! bitte immer kurze Antworten
+! please always give short answers
 → Stored in feedback memory
 
-! ich arbeite gerade an Project Alpha
+! I'm currently working on Project Alpha
 → Stored in context memory (14 day decay)
 ```
 
@@ -195,7 +195,7 @@ Agents use this naturally — they don't announce "I remember that..." but simpl
 
 If outheis has wrong information:
 
-1. **Explicit correction:** `! ich bin 36, nicht 35`
+1. **Explicit correction:** `! I'm 36, not 35`
 2. **CLI edit:** `outheis memory --clear user` then re-add
 3. **Direct file edit:** Modify JSON in `~/.outheis/human/memory/`
 
