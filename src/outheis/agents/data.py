@@ -148,9 +148,13 @@ class DataAgent(BaseAgent):
     def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message with LLM."""
         query = msg.payload.get("text", "") or msg.payload.get("query", "")
+        
+        # Determine response target: if from user, respond to transport; if from agent, respond to that agent
+        response_to = "transport" if msg.from_user else (msg.from_agent or "relay")
+        
         if not query:
             return self.respond(
-                to=msg.from_agent or "relay",
+                to=response_to,
                 payload={"error": "Empty query"},
                 conversation_id=msg.conversation_id,
                 reply_to=msg.id,
@@ -181,7 +185,7 @@ Based on the vault contents above, answer the user's query. If the information i
             answer = response.content[0].text
             
             return self.respond(
-                to=msg.from_agent or "relay",
+                to=response_to,
                 payload={
                     "answer": answer,
                     "sources": [entry.path for _, entry in self.search(query, limit=5)],
@@ -192,7 +196,7 @@ Based on the vault contents above, answer the user's query. If the information i
             
         except Exception as e:
             return self.respond(
-                to=msg.from_agent or "relay",
+                to=response_to,
                 payload={"error": str(e)},
                 conversation_id=msg.conversation_id,
                 reply_to=msg.id,
