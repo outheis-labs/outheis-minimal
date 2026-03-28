@@ -42,6 +42,7 @@ Examples:
 
 def classify_query(client, text: str) -> str:
     """Use Haiku to classify where a query should be routed."""
+    import os
     import sys
     
     response = client.messages.create(
@@ -54,8 +55,9 @@ def classify_query(client, text: str) -> str:
     raw = response.content[0].text.strip()
     classification = raw.lower()
     
-    # Debug output
-    print(f"[route: {classification}]", file=sys.stderr)
+    # Debug output (only if verbose)
+    if os.environ.get("OUTHEIS_VERBOSE"):
+        print(f"[route: {classification}]", file=sys.stderr)
     
     # Validate response
     if classification in ("data", "agenda", "relay"):
@@ -134,16 +136,20 @@ class RelayAgent(BaseAgent):
 
     def _route_query(self, text: str) -> str:
         """Determine where to route a query using LLM classification."""
+        import os
         import sys
         
+        verbose = os.environ.get("OUTHEIS_VERBOSE")
         text_lower = text.lower()
         
         # Explicit agent mentions override classification
         if "@zeno" in text_lower:
-            print("[route: data (@zeno)]", file=sys.stderr)
+            if verbose:
+                print("[route: data (@zeno)]", file=sys.stderr)
             return "data"
         if "@cato" in text_lower:
-            print("[route: agenda (@cato)]", file=sys.stderr)
+            if verbose:
+                print("[route: agenda (@cato)]", file=sys.stderr)
             return "agenda"
         
         # Use Haiku to classify
@@ -151,13 +157,16 @@ class RelayAgent(BaseAgent):
             route = classify_query(self.client, text)
             return route
         except Exception as e:
-            print(f"[route error: {e}]", file=sys.stderr)
+            if verbose:
+                print(f"[route error: {e}]", file=sys.stderr)
             return "relay"
 
     def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message."""
+        import os
         import sys
         
+        verbose = os.environ.get("OUTHEIS_VERBOSE")
         text = msg.payload.get("text", "")
 
         if not text:
@@ -179,13 +188,16 @@ class RelayAgent(BaseAgent):
         route = self._route_query(text)
         
         if route == "agenda":
-            print("[delegating to agenda]", file=sys.stderr)
+            if verbose:
+                print("[delegating to agenda]", file=sys.stderr)
             response_text = self._handle_with_agenda_agent(text, msg)
         elif route == "data":
-            print("[delegating to data]", file=sys.stderr)
+            if verbose:
+                print("[delegating to data]", file=sys.stderr)
             response_text = self._handle_with_data_agent(text, msg)
         else:
-            print("[handling directly]", file=sys.stderr)
+            if verbose:
+                print("[handling directly]", file=sys.stderr)
             context = self.get_conversation_context(msg.conversation_id)
             response_text = self._generate_response(text, context, msg)
 

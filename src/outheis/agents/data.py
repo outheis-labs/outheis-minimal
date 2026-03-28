@@ -193,7 +193,11 @@ Based on the vault contents above, answer the user's query. If the information i
         """
         context = self._build_context(query)
         
-        user_content = f"""The user is asking about their vault contents.
+        user_content = f"""The user is asking about their personal information.
+
+You have two sources of information:
+1. MEMORY (in your system prompt) — facts the user has explicitly told you
+2. VAULT SEARCH RESULTS (below) — the user's notes and documents
 
 VAULT SEARCH RESULTS:
 {context}
@@ -201,7 +205,7 @@ VAULT SEARCH RESULTS:
 USER QUERY:
 {query}
 
-Based on the vault contents above, answer the user's query. If the information isn't in the vault, say so clearly. Match the language of the user's query."""
+First check your Memory for relevant information, then the vault search results. Combine both sources in your answer. If the information isn't in either, say so clearly. Match the language of the user's query."""
 
         try:
             response = self.client.messages.create(

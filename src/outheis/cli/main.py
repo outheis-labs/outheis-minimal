@@ -50,12 +50,22 @@ def start(
         "-f",
         help="Run in foreground (don't daemonize)",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable debug output (routing, delegation)",
+    ),
 ) -> None:
     """Start the outheis dispatcher daemon."""
+    import os
     from outheis.core.config import init_directories
     from outheis.dispatcher.daemon import start_daemon
 
     init_directories()
+    
+    if verbose:
+        os.environ["OUTHEIS_VERBOSE"] = "1"
 
     if foreground:
         typer.echo("Starting dispatcher in foreground (Ctrl+C to stop)...")
