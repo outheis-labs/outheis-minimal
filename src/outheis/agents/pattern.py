@@ -2,64 +2,66 @@
 Pattern agent (rumi).
 
 Reflection, insight extraction, learning, and knowledge generalization.
+Manages persistent memory by analyzing conversations and extracting
+relevant information about the user.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+
+from anthropic import Anthropic
 
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
+from outheis.core.memory import get_memory_store, MemoryType
+from outheis.core.queue import read_last_n
+from outheis.core.config import get_messages_path, load_config
 
 # =============================================================================
 # SYSTEM PROMPT
 # =============================================================================
 
-PATTERN_SYSTEM_PROMPT = """You are the Pattern agent (rumi) in the outheis system.
+PATTERN_SYSTEM_PROMPT = """You are rumi, the Pattern agent in the outheis system.
 
-Your responsibility: Reflection, insight extraction, learning, and knowledge generalization.
+Your responsibility: Analyze conversations and extract information worth remembering
+about the user. You maintain the system's persistent memory.
 
-You have read access to the vault, messages, and session notes. You write to human/insights.jsonl and human/tag-weights.jsonl.
+Memory types you manage:
+- user: Personal facts (family, age, location, preferences, background)
+- feedback: How the user wants to be treated (communication style, format preferences)
+- context: Current projects, ongoing topics, recent focus areas
 
-Tasks:
-- Observe patterns in user behavior and content
-- Extract insights and write them to insights.jsonl
-- Harmonize tags across the vault
-- Identify connections the user might have missed
-- Run scheduled reflection (default: 04:00 local time)
-- Distinguish generalizable knowledge from specific instances
+Your task now: Analyze the following conversation excerpts and extract NEW information
+that should be remembered. Only extract clear, explicit information—not assumptions.
 
-The Generalization Task:
-When other agents learn something from user help, they log it as a session note.
-Your job is to determine:
-- Is this a strategy that applies beyond this instance? → Extract principle, add to insights
-- Is this specific knowledge about a particular thing? → Leave in archive
-- Is this a skill the system should remember? → Formulate as capability note
+Language: {language}
 
-Examples:
-- "User showed me how to format tables for Signal" → Generalizable (formatting strategy)
-- "User's dentist is Dr. Müller" → Specific (personal fact, stays in vault/archive)
-- "When user says 'later' they usually mean 'this week'" → Generalizable (user pattern)
-- "The project deadline is March 15" → Specific (temporal fact)
+Rules:
+- Only extract information the user explicitly stated or clearly implied
+- Don't repeat information already in memory
+- Be concise—one fact per entry
+- For "user" type: personal facts, family, preferences, background
+- For "feedback" type: how they want responses (length, tone, format)
+- For "context" type: what they're currently working on, active projects
 
-Style:
-- Observational, not prescriptive
-- Surface patterns, don't impose interpretations
-- Work quietly in the background
-- Only speak when you've found something noteworthy
-- Be conservative in generalization—false patterns are worse than missed ones
+Respond in JSON format:
+{{
+  "extractions": [
+    {{"type": "user", "content": "User is 35 years old", "confidence": 0.9}},
+    {{"type": "feedback", "content": "Prefers short, direct answers", "confidence": 0.8}},
+    {{"type": "context", "content": "Working on Project Alpha mobile app", "confidence": 1.0}}
+  ],
+  "reasoning": "Brief explanation of what you found"
+}}
 
-Core principles:
-- Be honest about uncertainty
-- Say "I don't know" when you don't know
-- Never fabricate information
-
-You do NOT:
-- Communicate directly with users unless asked
-- Execute actions
-- Modify vault content (only insights and tag-weights)
-- Draw conclusions beyond the evidence
-- Generalize from single instances (require pattern across ≥3 occurrences)
+If nothing new to extract, respond:
+{{
+  "extractions": [],
+  "reasoning": "No new memorable information in these conversations"
+}}
 """
 
 
@@ -71,28 +73,140 @@ You do NOT:
 class PatternAgent(BaseAgent):
     """
     Pattern agent handles reflection and learning.
-
-    MVP: Not implemented.
-    Production: Session note review, insight extraction, tag harmonization.
+    
+    Analyzes conversations to extract and maintain persistent memory
+    about the user.
     """
 
     name: str = "pattern"
+    _client: Anthropic | None = field(default=None, repr=False)
+    
+    @property
+    def client(self) -> Anthropic:
+        if self._client is None:
+            self._client = Anthropic()
+        return self._client
 
     def get_system_prompt(self) -> str:
-        return PATTERN_SYSTEM_PROMPT
+        config = load_config()
+        return PATTERN_SYSTEM_PROMPT.format(language=config.user.language)
 
     def handle(self, msg: Message) -> Message | None:
-        """Handle an incoming message."""
-        # TODO: Implement pattern recognition
+        """Handle an incoming message (direct query to pattern agent)."""
+        query = msg.payload.get("text", "")
+        
+        if "analyze" in query.lower() or "memory" in query.lower():
+            # Trigger memory analysis
+            count = self.analyze_recent_conversations()
+            return self.respond(
+                to=msg.from_agent or "relay",
+                payload={
+                    "text": f"Analyzed recent conversations. Extracted {count} new memory entries.",
+                },
+                conversation_id=msg.conversation_id,
+                reply_to=msg.id,
+            )
+        
         return self.respond(
             to=msg.from_agent or "relay",
             payload={
-                "status": "not_implemented",
-                "message": "Pattern agent not yet implemented",
+                "text": "Pattern agent is ready. Use 'analyze memory' to trigger analysis.",
             },
             conversation_id=msg.conversation_id,
             reply_to=msg.id,
         )
+
+    def analyze_recent_conversations(self, hours: int = 24) -> int:
+        """
+        Analyze recent conversations and extract memory.
+        
+        Returns number of new memory entries created.
+        """
+        # Get recent messages
+        messages_path = get_messages_path()
+        recent_messages = read_last_n(messages_path, 100)
+        
+        # Filter to user messages from the last N hours
+        cutoff = datetime.now() - timedelta(hours=hours)
+        user_messages = [
+            m for m in recent_messages
+            if m.from_user and datetime.fromtimestamp(m.timestamp) > cutoff
+        ]
+        
+        if not user_messages:
+            return 0
+        
+        # Build conversation context
+        conversation_text = self._build_conversation_context(user_messages)
+        
+        # Get current memory to avoid duplicates
+        store = get_memory_store()
+        current_memory = store.to_prompt_context()
+        
+        # Call LLM to extract new information
+        extractions = self._extract_with_llm(conversation_text, current_memory)
+        
+        # Store new memories
+        count = 0
+        for extraction in extractions:
+            memory_type = extraction.get("type")
+            content = extraction.get("content")
+            confidence = extraction.get("confidence", 0.8)
+            
+            if memory_type in ["user", "feedback", "context"] and content:
+                store.add(content, memory_type, confidence)
+                count += 1
+        
+        return count
+    
+    def _build_conversation_context(self, messages: list[Message]) -> str:
+        """Build a text context from messages for analysis."""
+        lines = []
+        for msg in messages[-20:]:  # Last 20 user messages
+            text = msg.payload.get("text", "")
+            if text:
+                lines.append(f"User: {text}")
+        
+        return "\n".join(lines)
+    
+    def _extract_with_llm(self, conversation_text: str, current_memory: str) -> list[dict]:
+        """Use LLM to extract memorable information."""
+        import json
+        
+        user_prompt = f"""Current memory (don't repeat this):
+{current_memory if current_memory else "(empty)"}
+
+---
+
+Recent conversation:
+{conversation_text}
+
+---
+
+Extract any NEW information worth remembering. Respond in JSON only."""
+        
+        try:
+            response = self.client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=1000,
+                system=self.get_system_prompt(),
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            
+            # Parse JSON response
+            response_text = response.content[0].text.strip()
+            
+            # Handle markdown code blocks
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                response_text = "\n".join(lines[1:-1])
+            
+            data = json.loads(response_text)
+            return data.get("extractions", [])
+            
+        except Exception as e:
+            print(f"Pattern agent extraction error: {e}")
+            return []
 
     def run_scheduled(self) -> None:
         """
@@ -100,13 +214,14 @@ class PatternAgent(BaseAgent):
 
         Called at configured time (default 04:00).
         """
-        # TODO: Implement scheduled reflection
-        # 1. Review session notes
-        # 2. Extract generalizable patterns
-        # 3. Write insights
-        # 4. Update tag weights
-        # 5. Mark session notes as reviewed
-        pass
+        print(f"[{datetime.now().isoformat()}] Pattern agent: starting scheduled analysis")
+        count = self.analyze_recent_conversations(hours=24)
+        print(f"[{datetime.now().isoformat()}] Pattern agent: extracted {count} new memories")
+        
+        # TODO: Also handle
+        # - Tag harmonization
+        # - Insight extraction
+        # - Context cleanup (remove stale context entries)
 
 
 # =============================================================================

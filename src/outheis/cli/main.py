@@ -280,14 +280,69 @@ def pattern(
     agent = create_pattern_agent()
 
     if dry_run:
-        typer.echo("[dry-run] Would process session notes")
-        typer.echo("[dry-run] Would extract insights")
-        typer.echo("[dry-run] Would update tag weights")
+        typer.echo("[dry-run] Would analyze recent conversations")
+        typer.echo("[dry-run] Would extract memories")
         return
 
-    agent.run_scheduled()
+    count = agent.analyze_recent_conversations()
+    typer.echo(f"Extracted {count} new memory entries.")
 
-    typer.echo("Done.")
+
+@app.command()
+def memory(
+    show: bool = typer.Option(True, "--show", "-s", help="Show current memory"),
+    add: str = typer.Option(None, "--add", "-a", help="Add memory entry (format: type:content)"),
+    clear: str = typer.Option(None, "--clear", "-c", help="Clear memory type (user/feedback/context)"),
+) -> None:
+    """View and manage persistent memory."""
+    from outheis.core.memory import get_memory_store
+    
+    store = get_memory_store()
+    
+    if add:
+        # Parse "type:content" format
+        if ":" not in add:
+            typer.echo("Format: --add 'type:content' (type = user/feedback/context)")
+            raise typer.Exit(1)
+        
+        memory_type, content = add.split(":", 1)
+        memory_type = memory_type.strip().lower()
+        content = content.strip()
+        
+        if memory_type not in ["user", "feedback", "context"]:
+            typer.echo(f"Invalid type: {memory_type}. Use user/feedback/context.")
+            raise typer.Exit(1)
+        
+        store.add(content, memory_type)
+        typer.echo(f"Added to {memory_type}: {content}")
+        return
+    
+    if clear:
+        if clear not in ["user", "feedback", "context", "all"]:
+            typer.echo("Use: --clear user/feedback/context/all")
+            raise typer.Exit(1)
+        
+        if clear == "all":
+            for mt in ["user", "feedback", "context"]:
+                store.clear(mt)
+            typer.echo("Cleared all memory.")
+        else:
+            store.clear(clear)
+            typer.echo(f"Cleared {clear} memory.")
+        return
+    
+    # Show memory
+    typer.echo("Memory")
+    typer.echo("-" * 40)
+    
+    for memory_type in ["user", "feedback", "context"]:
+        entries = store.get(memory_type)
+        typer.echo(f"\n[{memory_type}] ({len(entries)} entries)")
+        for i, entry in enumerate(entries):
+            conf = f" ({entry.confidence:.0%})" if entry.confidence < 1.0 else ""
+            typer.echo(f"  {i+1}. {entry.content}{conf}")
+    
+    typer.echo()
 
 
 if __name__ == "__main__":

@@ -22,6 +22,8 @@ Your responsibility: All communication between users and the system.
 
 You are the only agent that speaks directly to users. Other agents speak through you.
 
+{memory_context}
+
 Tasks:
 - Receive user messages from any channel (Signal, CLI, API)
 - Handle general conversation directly
@@ -38,6 +40,7 @@ Style:
 - Be brief—especially on mobile channels
 - Don't explain the system unless asked
 - Don't announce what you're doing ("Let me check..."—just check)
+- Use memory naturally—don't announce "I remember that..."
 
 Core principles:
 - Be honest about uncertainty
@@ -54,6 +57,9 @@ You handle directly:
 - General conversation
 - Questions about the system
 - Simple tasks that don't need vault access
+
+When the user shares personal information (family, preferences, facts about themselves),
+acknowledge it naturally. The Pattern agent will decide what to persist.
 """
 
 # Keywords that suggest vault queries
@@ -82,8 +88,15 @@ class RelayAgent(BaseAgent):
 
     def get_system_prompt(self) -> str:
         from outheis.core.config import load_config
+        from outheis.core.memory import get_memory_context
+        
         config = load_config()
-        return RELAY_SYSTEM_PROMPT.format(language=config.user.language)
+        memory_context = get_memory_context()
+        
+        return RELAY_SYSTEM_PROMPT.format(
+            language=config.user.language,
+            memory_context=memory_context,
+        )
 
     @property
     def data_agent(self):
