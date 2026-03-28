@@ -3,6 +3,10 @@ Configuration management.
 
 User config: ~/.outheis/human/config.json
 System config: ~/.outheis/config.json (future)
+
+Environment overrides:
+  OUTHEIS_HUMAN_DIR — override human data directory
+  OUTHEIS_VAULT — override vault path
 """
 
 from __future__ import annotations
@@ -22,7 +26,10 @@ def get_outheis_dir() -> Path:
 
 
 def get_human_dir() -> Path:
-    """Get user data directory."""
+    """Get user data directory. Respects OUTHEIS_HUMAN_DIR env var."""
+    override = os.environ.get("OUTHEIS_HUMAN_DIR")
+    if override:
+        return Path(os.path.expanduser(override))
     return get_outheis_dir() / "human"
 
 
@@ -72,13 +79,19 @@ class UserConfig:
     signal_phone: str | None = None
 
     def primary_vault(self) -> Path:
-        """Get primary vault path (first in list)."""
+        """Get primary vault path. Respects OUTHEIS_VAULT env var."""
+        override = os.environ.get("OUTHEIS_VAULT")
+        if override:
+            return Path(os.path.expanduser(override))
         if not self.vault:
             return get_human_dir() / "vault"
         return Path(os.path.expanduser(self.vault[0]))
 
     def all_vaults(self) -> list[Path]:
-        """Get all vault paths, expanded."""
+        """Get all vault paths, expanded. Respects OUTHEIS_VAULT env var."""
+        override = os.environ.get("OUTHEIS_VAULT")
+        if override:
+            return [Path(os.path.expanduser(override))]
         return [Path(os.path.expanduser(v)) for v in self.vault]
 
 

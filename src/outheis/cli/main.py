@@ -56,16 +56,31 @@ def start(
         "-v",
         help="Enable debug output (routing, delegation)",
     ),
+    human_dir: str = typer.Option(
+        None,
+        "--human",
+        help="Override human data directory (default: ~/.outheis/human)",
+    ),
+    vault_path: str = typer.Option(
+        None,
+        "--vault",
+        help="Override vault path",
+    ),
 ) -> None:
     """Start the outheis dispatcher daemon."""
     import os
     from outheis.core.config import init_directories
     from outheis.dispatcher.daemon import start_daemon
 
-    init_directories()
-    
+    # Set environment overrides
+    if human_dir:
+        os.environ["OUTHEIS_HUMAN_DIR"] = human_dir
+    if vault_path:
+        os.environ["OUTHEIS_VAULT"] = vault_path
     if verbose:
         os.environ["OUTHEIS_VERBOSE"] = "1"
+
+    init_directories()
 
     if foreground:
         typer.echo("Starting dispatcher in foreground (Ctrl+C to stop)...")
