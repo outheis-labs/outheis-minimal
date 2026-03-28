@@ -305,10 +305,57 @@ class Dispatcher:
             count += 1
         return count
 
+    def _validate_api_keys(self) -> list[str]:
+        """
+        Validate API keys for all enabled agents.
+        
+        Returns list of errors, empty if all valid.
+        """
+        import os
+        errors = []
+        
+        # Check Anthropic API key (used by relay, data, pattern)
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            errors.append("ANTHROPIC_API_KEY not set")
+        elif not api_key.startswith("sk-ant-"):
+            errors.append("ANTHROPIC_API_KEY has invalid format")
+        else:
+            # Quick validation: try a minimal API call
+            try:
+                import anthropic
+                client = anthropic.Anthropic(api_key=api_key)
+                # Minimal request to validate key
+                client.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=1,
+                    messages=[{"role": "user", "content": "hi"}],
+                )
+            except anthropic.AuthenticationError:
+                errors.append("ANTHROPIC_API_KEY is invalid")
+            except anthropic.APIError as e:
+                # Rate limit or other API error is OK - key is valid
+                if "authentication" in str(e).lower():
+                    errors.append(f"ANTHROPIC_API_KEY error: {e}")
+            except Exception as e:
+                errors.append(f"API key validation failed: {e}")
+        
+        return errors
+
     def run(self) -> None:
         """Run the dispatcher daemon."""
         from outheis.core.queue import recover_pending
         from outheis.dispatcher.lock import LockManager
+
+        # Validate API keys before starting
+        print("Validating API keys...")
+        errors = self._validate_api_keys()
+        if errors:
+            for err in errors:
+                print(f"  ✗ {err}")
+            print("\nDispatcher cannot start. Fix configuration and try again.")
+            return
+        print("  ✓ API keys valid")
 
         init_directories()
         write_pid()

@@ -99,7 +99,12 @@ def send(
     response = transport.wait_for_response(msg.id, timeout=timeout)
 
     if response:
-        typer.echo(f"\n{response.payload.get('text', '')}")
+        # Handle different response formats (text from relay, answer from data)
+        text = response.payload.get('text') or response.payload.get('answer', '')
+        if response.payload.get('error'):
+            typer.echo(f"[Error: {text}]")
+        else:
+            typer.echo(text)
     else:
         typer.echo("[no response within timeout]")
 
@@ -135,7 +140,11 @@ def chat() -> None:
             response = transport.wait_for_response(msg.id, timeout=30.0)
 
             if response:
-                typer.echo(f"\n{response.payload.get('text', '')}")
+                text = response.payload.get('text') or response.payload.get('answer', '')
+                if response.payload.get('error'):
+                    typer.echo(f"[Error: {text}]")
+                else:
+                    typer.echo(f"\n{text}")
             else:
                 typer.echo("[no response]")
 
