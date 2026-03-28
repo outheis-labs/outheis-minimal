@@ -19,27 +19,18 @@ from outheis.core.message import Message
 
 ROUTING_PROMPT = """You are a routing classifier for a personal AI assistant.
 
-The user has sent a message. Classify where it should be handled:
+Classify where the message should be handled:
 
-- "data" — Questions that require SEARCHING the user's vault (notes, documents, files). Use for: "find...", "what's in my notes about...", "search for...", or when the user explicitly references their documents/vault.
-- "agenda" — Questions about schedule, calendar, appointments, what's happening today/tomorrow/this week, availability
-- "relay" — Everything else: general conversation, personal facts/preferences (we remember those), chitchat, explanations, advice
+- "agenda" — ONLY explicit schedule questions: "was steht heute an?", "termine morgen?", "bin ich frei am..."
+- "relay" — Everything else (relay has tools to search vault/agenda if needed)
 
-Respond with exactly one word: data, agenda, or relay
+Respond with exactly one word: agenda or relay
 
 Examples:
-- "was steht in meinen notizen über X?" → data
-- "find my notes about the project" → data
-- "what's my doctor's phone number?" → data
-- "suche nach der datei..." → data
 - "was steht heute an?" → agenda
+- "termine diese woche?" → agenda
 - "bin ich morgen frei?" → agenda
-- "habe ich am freitag zeit?" → agenda
-- "wie heisse ich?" → relay
-- "was trinke ich gerne?" → relay
-- "wo wohne ich?" → relay
-- "wie geht es dir?" → relay
-- "erkläre mir was über Python" → relay"""
+- Everything else → relay"""
 
 
 def classify_query(client, text: str) -> str:
@@ -61,11 +52,10 @@ def classify_query(client, text: str) -> str:
     if os.environ.get("OUTHEIS_VERBOSE"):
         print(f"[route: {classification}]", file=sys.stderr)
     
-    # Validate response
-    if classification in ("data", "agenda", "relay"):
-        return classification
+    # Validate response - only agenda goes direct, everything else to relay
+    if classification == "agenda":
+        return "agenda"
     
-    # Default to relay if unclear
     return "relay"
 
 
@@ -193,13 +183,9 @@ class RelayAgent(BaseAgent):
             if verbose:
                 print("[delegating to agenda]", file=sys.stderr)
             response_text = self._handle_with_agenda_agent(text, msg)
-        elif route == "data":
-            if verbose:
-                print("[delegating to data]", file=sys.stderr)
-            response_text = self._handle_with_data_agent(text, msg)
         else:
             if verbose:
-                print("[handling directly]", file=sys.stderr)
+                print("[handling with tools]", file=sys.stderr)
             context = self.get_conversation_context(msg.conversation_id)
             response_text = self._generate_response(text, context, msg)
 
@@ -209,14 +195,6 @@ class RelayAgent(BaseAgent):
             conversation_id=msg.conversation_id,
             reply_to=msg.id,
         )
-
-    def _handle_with_data_agent(self, text: str, msg: Message) -> str:
-        """Delegate to Data agent and format response."""
-        try:
-            answer = self.data_agent.handle_direct(text)
-            return answer
-        except Exception as e:
-            return f"I tried to search your vault but encountered an error: {e}"
 
     def _handle_with_agenda_agent(self, text: str, msg: Message) -> str:
         """Delegate to Agenda agent and format response."""
@@ -244,45 +222,125 @@ class RelayAgent(BaseAgent):
         context: list[Message],
         original_msg: Message,
     ) -> str:
-        """Generate a response using LLM."""
+        """Generate a response using LLM with tools."""
         try:
-            return self._call_llm(text, context)
+            return self._call_llm_with_tools(text, context)
         except Exception as e:
-            return f"I encountered an error: {e}"
+            return f"Ein Fehler ist aufgetreten: {e}"
 
-    def _call_llm(self, text: str, context: list[Message]) -> str:
-        """Call LLM API for conversation."""
-        # Build messages for API
+    def _call_llm_with_tools(self, text: str, context: list[Message]) -> str:
+        """Call LLM API with tool support for vault/agenda access."""
+        import os
+        import sys
+        
+        verbose = os.environ.get("OUTHEIS_VERBOSE")
+        
+        # Define tools
+        tools = [
+            {
+                "name": "search_vault",
+                "description": "Search the user's vault (notes, documents, files) for information. Use when you don't know something from memory and need to look it up.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "What to search for"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "check_agenda",
+                "description": "Check the user's schedule/calendar. Use for questions about appointments, availability, what's happening today/tomorrow.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The schedule question"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            }
+        ]
+        
+        # Build messages
         messages = []
-
-        # Add context from conversation
         for msg in context[-5:]:
             if msg.from_user:
-                messages.append({
-                    "role": "user",
-                    "content": msg.payload.get("text", ""),
-                })
+                messages.append({"role": "user", "content": msg.payload.get("text", "")})
             elif msg.from_agent == "relay":
-                messages.append({
-                    "role": "assistant",
-                    "content": msg.payload.get("text", ""),
-                })
-
-        # Add current message
-        messages.append({
-            "role": "user",
-            "content": text,
-        })
-
-        # Use Sonnet for conversation (better quality)
+                messages.append({"role": "assistant", "content": msg.payload.get("text", "")})
+        messages.append({"role": "user", "content": text})
+        
+        # First call - may use tools
         response = self.client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1024,
             system=self.get_system_prompt(),
             messages=messages,
+            tools=tools,
         )
-
-        return response.content[0].text
+        
+        # Check if tool use is needed
+        if response.stop_reason == "tool_use":
+            # Process tool calls
+            tool_results = []
+            for block in response.content:
+                if block.type == "tool_use":
+                    if verbose:
+                        print(f"[tool: {block.name}({block.input})]", file=sys.stderr)
+                    
+                    if block.name == "search_vault":
+                        result = self.data_agent.handle_direct(block.input["query"])
+                    elif block.name == "check_agenda":
+                        # Create a minimal message for agenda
+                        from outheis.core.message import generate_id
+                        agenda_msg = Message(
+                            id=generate_id(),
+                            to="agenda",
+                            type="request",
+                            payload={"text": block.input["query"]},
+                            conversation_id="tool_call",
+                            from_agent="relay",
+                        )
+                        agenda_response = self.agenda_agent.handle(agenda_msg)
+                        result = agenda_response.payload.get("text", "") if agenda_response else "Keine Termine gefunden."
+                    else:
+                        result = "Tool not found"
+                    
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+            
+            # Second call with tool results
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": tool_results})
+            
+            final_response = self.client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=1024,
+                system=self.get_system_prompt(),
+                messages=messages,
+                tools=tools,
+            )
+            
+            # Extract text from response
+            for block in final_response.content:
+                if hasattr(block, "text"):
+                    return block.text
+            return "Ich konnte keine Antwort formulieren."
+        
+        # No tool use - return direct response
+        for block in response.content:
+            if hasattr(block, "text"):
+                return block.text
+        return "Ich konnte keine Antwort formulieren."
 
 
 # =============================================================================
