@@ -12,30 +12,49 @@ from dataclasses import dataclass, field
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
 
-# Keywords that suggest vault queries (personal data, facts about the user)
-VAULT_KEYWORDS = [
-    # Explicit vault terms
-    "vault", "note", "notes", "document", "find", "search",
-    "what do i have", "my files", "my notes", "look up",
-    "in my", "did i write", "where is", "show me",
-    # Personal data questions
-    "wo wohne", "where do i live", "my address", "meine adresse",
-    "my phone", "meine nummer", "my email", "meine email",
-    "my doctor", "mein arzt", "my allergies", "meine allergien",
-    "my projects", "meine projekte",
-    "wie heisse", "what is my name", "what's my name",
-    "my birthday", "mein geburtstag",
-    "my family", "meine familie", "my wife", "my husband", "my children",
-    "meine frau", "mein mann", "meine kinder",
-]
 
-# Keywords that suggest agenda/schedule queries
-AGENDA_KEYWORDS = [
-    "schedule", "calendar", "appointment", "meeting", "today",
-    "tomorrow", "next week", "this week", "free time", "available",
-    "busy", "when am i", "what's on", "daily", "inbox",
-    "termine", "termin", "kalender", "morgen", "woche",
-]
+# =============================================================================
+# ROUTING
+# =============================================================================
+
+ROUTING_PROMPT = """You are a routing classifier for a personal AI assistant.
+
+The user has sent a message. Classify where it should be handled:
+
+- "data" — Questions about the user's personal information stored in their vault (notes, documents, contacts, addresses, health info, projects, family, anything the user has written down)
+- "agenda" — Questions about schedule, calendar, appointments, what's happening today/tomorrow, availability
+- "relay" — General conversation, questions you can answer directly, chitchat, requests that don't need personal data
+
+Respond with exactly one word: data, agenda, or relay
+
+Examples:
+- "wo wohne ich?" → data
+- "what's my doctor's phone number?" → data  
+- "erzähl mir was über meine projekte" → data
+- "was steht heute an?" → agenda
+- "bin ich morgen frei?" → agenda
+- "wie geht es dir?" → relay
+- "erkläre mir was über Python" → relay
+- "was ist die hauptstadt von frankreich?" → relay"""
+
+
+def classify_query(client, text: str) -> str:
+    """Use Haiku to classify where a query should be routed."""
+    response = client.messages.create(
+        model="claude-haiku-4-5-20250514",
+        max_tokens=10,
+        system=ROUTING_PROMPT,
+        messages=[{"role": "user", "content": text}],
+    )
+    
+    classification = response.content[0].text.strip().lower()
+    
+    # Validate response
+    if classification in ("data", "agenda", "relay"):
+        return classification
+    
+    # Default to relay if unclear
+    return "relay"
 
 
 # =============================================================================
@@ -47,14 +66,24 @@ class RelayAgent(BaseAgent):
     """
     Relay agent handles all user communication.
 
-    Delegates vault queries to Data agent.
-    Delegates schedule queries to Agenda agent.
-    Handles general conversation directly.
+    Uses LLM to classify queries and delegate to appropriate agent:
+    - Data agent (zeno) for vault/personal data queries
+    - Agenda agent (cato) for schedule queries
+    - Handles general conversation directly
     """
 
     name: str = "relay"
+    _client: any = field(default=None, repr=False)
     _data_agent: any = field(default=None, repr=False)
     _agenda_agent: any = field(default=None, repr=False)
+
+    @property
+    def client(self):
+        """Lazy load Anthropic client."""
+        if self._client is None:
+            import anthropic
+            self._client = anthropic.Anthropic()
+        return self._client
 
     def get_system_prompt(self) -> str:
         from outheis.agents.loader import load_rules
@@ -95,39 +124,25 @@ class RelayAgent(BaseAgent):
             self._agenda_agent = create_agenda_agent()
         return self._agenda_agent
 
-    def _should_delegate_to_data(self, text: str) -> bool:
-        """Check if query should go to Data agent."""
+    def _route_query(self, text: str) -> str:
+        """Determine where to route a query using LLM classification."""
         text_lower = text.lower()
         
-        # Explicit mention
+        # Explicit agent mentions override classification
         if "@zeno" in text_lower:
-            return True
-        
-        # Keyword matching
-        for keyword in VAULT_KEYWORDS:
-            if keyword in text_lower:
-                return True
-        
-        return False
-
-    def _should_delegate_to_agenda(self, text: str) -> bool:
-        """Check if query should go to Agenda agent."""
-        text_lower = text.lower()
-        
-        # Explicit mention
+            return "data"
         if "@cato" in text_lower:
-            return True
+            return "agenda"
         
-        # Keyword matching
-        for keyword in AGENDA_KEYWORDS:
-            if keyword in text_lower:
-                return True
-        
-        return False
+        # Use Haiku to classify
+        try:
+            return classify_query(self.client, text)
+        except Exception:
+            # On error, default to relay
+            return "relay"
 
     def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message."""
-        # Get user text
         text = msg.payload.get("text", "")
 
         if not text:
@@ -138,7 +153,6 @@ class RelayAgent(BaseAgent):
         was_memory, memory_response = handle_explicit_memory(text)
         
         if was_memory:
-            # Acknowledge memory storage
             return self.respond(
                 to="transport",
                 payload={"text": memory_response},
@@ -146,17 +160,18 @@ class RelayAgent(BaseAgent):
                 reply_to=msg.id,
             )
 
-        # Check for delegation (order matters: more specific first)
-        if self._should_delegate_to_agenda(text):
+        # Route query using LLM classification
+        route = self._route_query(text)
+        
+        if route == "agenda":
             response_text = self._handle_with_agenda_agent(text, msg)
-        elif self._should_delegate_to_data(text):
+        elif route == "data":
             response_text = self._handle_with_data_agent(text, msg)
         else:
             # Handle directly
             context = self.get_conversation_context(msg.conversation_id)
             response_text = self._generate_response(text, context, msg)
 
-        # Send response to transport
         return self.respond(
             to="transport",
             payload={"text": response_text},
@@ -167,7 +182,6 @@ class RelayAgent(BaseAgent):
     def _handle_with_data_agent(self, text: str, msg: Message) -> str:
         """Delegate to Data agent and format response."""
         try:
-            # Get answer from Data agent
             answer = self.data_agent.handle_direct(text)
             return answer
         except Exception as e:
@@ -176,7 +190,6 @@ class RelayAgent(BaseAgent):
     def _handle_with_agenda_agent(self, text: str, msg: Message) -> str:
         """Delegate to Agenda agent and format response."""
         try:
-            # Create a message for the agenda agent
             agenda_msg = Message(
                 to="agenda",
                 type="query",
@@ -196,28 +209,19 @@ class RelayAgent(BaseAgent):
         context: list[Message],
         original_msg: Message,
     ) -> str:
-        """
-        Generate a response using LLM.
-
-        MVP: Uses anthropic SDK directly.
-        """
+        """Generate a response using LLM."""
         try:
             return self._call_llm(text, context)
         except Exception as e:
             return f"I encountered an error: {e}"
 
     def _call_llm(self, text: str, context: list[Message]) -> str:
-        """Call LLM API."""
-        try:
-            import anthropic
-        except ImportError:
-            return "[anthropic SDK not installed. Run: pip install anthropic]"
-
+        """Call LLM API for conversation."""
         # Build messages for API
         messages = []
 
         # Add context from conversation
-        for msg in context[-5:]:  # Last 5 messages
+        for msg in context[-5:]:
             if msg.from_user:
                 messages.append({
                     "role": "user",
@@ -235,10 +239,8 @@ class RelayAgent(BaseAgent):
             "content": text,
         })
 
-        # Call API
-        client = anthropic.Anthropic()
-
-        response = client.messages.create(
+        # Use Sonnet for conversation (better quality)
+        response = self.client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1024,
             system=self.get_system_prompt(),
