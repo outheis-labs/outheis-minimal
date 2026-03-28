@@ -40,6 +40,8 @@ Examples:
 
 def classify_query(client, text: str) -> str:
     """Use Haiku to classify where a query should be routed."""
+    import sys
+    
     response = client.messages.create(
         model="claude-haiku-4-5-20250514",
         max_tokens=10,
@@ -47,7 +49,11 @@ def classify_query(client, text: str) -> str:
         messages=[{"role": "user", "content": text}],
     )
     
-    classification = response.content[0].text.strip().lower()
+    raw = response.content[0].text.strip()
+    classification = raw.lower()
+    
+    # Debug output
+    print(f"[route: {classification}]", file=sys.stderr)
     
     # Validate response
     if classification in ("data", "agenda", "relay"):

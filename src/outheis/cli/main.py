@@ -134,6 +134,7 @@ def send(
 @app.command()
 def chat() -> None:
     """Start interactive chat session (requires running dispatcher)."""
+    import readline
     from outheis.dispatcher.daemon import daemon_status
     from outheis.transport.cli import CLITransport
 
@@ -143,6 +144,9 @@ def chat() -> None:
         typer.echo("Dispatcher not running. Start it with: outheis start")
         raise typer.Exit(1)
 
+    # Configure readline for history
+    readline.set_history_length(10)
+    
     typer.echo("outheis CLI (type 'exit' to quit)")
     typer.echo("-" * 40)
 
@@ -150,12 +154,12 @@ def chat() -> None:
 
     while True:
         try:
-            text = typer.prompt("\n>", default="", show_default=False)
+            text = input("\n>: ").strip()
 
-            if not text.strip():
+            if not text:
                 continue
 
-            if text.strip().lower() in ("exit", "quit", "q"):
+            if text.lower() in ("exit", "quit", "q"):
                 break
 
             msg = transport.send(text)
