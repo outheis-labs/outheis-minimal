@@ -21,16 +21,20 @@ ROUTING_PROMPT = """You are a routing classifier for a personal AI assistant.
 
 Classify where the message should be handled:
 
-- "agenda" — ONLY explicit schedule questions: "was steht heute an?", "termine morgen?", "bin ich frei am..."
-- "relay" — Everything else (relay has tools to search vault/agenda if needed)
+- "data" — User explicitly wants to SEARCH their vault/notes/documents. Keywords: "search", "find", "in my notes", "suche", "notizen", "dokumente"
+- "agenda" — Schedule questions: "was steht heute an?", "termine morgen?", "bin ich frei am..."
+- "relay" — Everything else: personal questions, preferences, conversation, explanations
 
-Respond with exactly one word: agenda or relay
+Respond with exactly one word: data, agenda, or relay
 
 Examples:
+- "suche in meinen notizen" → data
+- "find my notes about X" → data
 - "was steht heute an?" → agenda
-- "termine diese woche?" → agenda
 - "bin ich morgen frei?" → agenda
-- Everything else → relay"""
+- "wie heisse ich?" → relay
+- "wo wohne ich?" → relay
+- "was trinke ich gerne?" → relay"""
 
 
 def classify_query(client, text: str) -> str:
@@ -183,9 +187,13 @@ class RelayAgent(BaseAgent):
             if verbose:
                 print("[delegating to agenda]", file=sys.stderr)
             response_text = self._handle_with_agenda_agent(text, msg)
+        elif route == "data":
+            if verbose:
+                print("[delegating to data]", file=sys.stderr)
+            response_text = self._handle_with_data_agent(text, msg)
         else:
             if verbose:
-                print("[handling with tools]", file=sys.stderr)
+                print("[handling directly]", file=sys.stderr)
             context = self.get_conversation_context(msg.conversation_id)
             response_text = self._generate_response(text, context, msg)
 
