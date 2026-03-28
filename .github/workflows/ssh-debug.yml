@@ -30,7 +30,7 @@ jobs:
               "name": "debug",
               "language": "en",
               "timezone": "UTC",
-              "vaults": ["${{ github.workspace }}/tests/fixtures/vault"]
+              "vault": ["${{ github.workspace }}/tests/fixtures/vault"]
             },
             "routing": {
               "threshold": 0.3,
@@ -45,6 +45,3 @@ jobs:
         uses: mxschmitt/action-tmate@v3
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        with:
-          limit-access-to-actor: true
-          sudo: false
