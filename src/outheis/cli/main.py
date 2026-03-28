@@ -97,9 +97,9 @@ def send(
     msg = transport.send(message)
 
     # Wait for response with progress indicator
-    # outheis breathing circle: largest → middle → smallest → middle
+    # outheis breathing circle: ⊙ → ◎ → ○ → ◦ → ○ → ◎ → ⊙
     start = time.time()
-    spinner = ['◎', '⊙', '○', '⊙']
+    spinner = ['⊙', '◎', '○', '◦', '○', '◎', '⊙']
     spinner_idx = 0
     
     while time.time() - start < timeout:
@@ -123,7 +123,7 @@ def send(
         sys.stdout.write(f'\r{spinner[spinner_idx]} Waiting for response... ({elapsed}s)')
         sys.stdout.flush()
         spinner_idx = (spinner_idx + 1) % len(spinner)
-        time.sleep(0.1)
+        time.sleep(0.3)
     
     # Timeout
     sys.stdout.write('\r' + ' ' * 40 + '\r')
