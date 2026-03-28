@@ -129,6 +129,12 @@ def read_last_n_ids(path: Path, n: int) -> list[str]:
     return ids[-n:] if len(ids) > n else ids
 
 
+def get_last_id(path: Path) -> str | None:
+    """Get the last message ID from the queue."""
+    ids = read_last_n_ids(path, 1)
+    return ids[0] if ids else None
+
+
 # =============================================================================
 # QUEUE OPERATIONS
 # =============================================================================

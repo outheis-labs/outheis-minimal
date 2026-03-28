@@ -34,7 +34,7 @@ from outheis.core.config import (
     load_config,
 )
 from outheis.core.message import Message
-from outheis.core.queue import append, read_from
+from outheis.core.queue import append, get_last_id, read_from
 from outheis.dispatcher.router import get_dispatch_target
 from outheis.dispatcher.watcher import QueueWatcher
 
@@ -326,13 +326,13 @@ class Dispatcher:
         if recovered:
             print(f"Recovered {recovered} pending message(s)")
 
+        # Start from where we left off (skip already processed messages)
+        self.last_processed_id = get_last_id(self.queue_path)
+
         # Start lock manager
         lock_manager = LockManager()
         lock_manager.start()
         print(f"Lock manager listening on: {lock_manager.socket_path}")
-
-        # Process any existing messages
-        self.process_pending()
 
         # Set up file watcher
         watcher = QueueWatcher(
