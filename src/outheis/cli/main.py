@@ -360,5 +360,60 @@ def memory(
     typer.echo()
 
 
+@app.command()
+def rules(
+    agent: str = typer.Argument(None, help="Agent name (relay, data, agenda, action, pattern)"),
+    user_only: bool = typer.Option(False, "--user", "-u", help="Show only user rules"),
+    system_only: bool = typer.Option(False, "--system", "-s", help="Show only system rules"),
+) -> None:
+    """View rules for agents."""
+    from outheis.agents.loader import (
+        get_system_rules_dir,
+        get_user_rules_dir,
+        list_user_rules,
+    )
+    
+    system_dir = get_system_rules_dir()
+    user_dir = get_user_rules_dir()
+    
+    agents = ["common", "relay", "data", "agenda", "action", "pattern"]
+    
+    if agent:
+        if agent not in agents:
+            typer.echo(f"Unknown agent: {agent}. Use: {', '.join(agents)}")
+            raise typer.Exit(1)
+        agents = [agent]
+    
+    for ag in agents:
+        typer.echo(f"\n{'='*40}")
+        typer.echo(f"[{ag}]")
+        typer.echo('='*40)
+        
+        # System rules
+        if not user_only:
+            system_file = system_dir / f"{ag}.md"
+            if system_file.exists():
+                typer.echo("\n## System Rules")
+                content = system_file.read_text()
+                # Show first 500 chars or summary
+                if len(content) > 500:
+                    typer.echo(content[:500] + "\n...")
+                else:
+                    typer.echo(content)
+            else:
+                typer.echo("\n## System Rules: (none)")
+        
+        # User rules
+        if not system_only:
+            user_file = user_dir / f"{ag}.md"
+            if user_file.exists():
+                typer.echo("\n## User Rules (emergent)")
+                typer.echo(user_file.read_text())
+            else:
+                typer.echo("\n## User Rules: (none yet)")
+    
+    typer.echo()
+
+
 if __name__ == "__main__":
     app()

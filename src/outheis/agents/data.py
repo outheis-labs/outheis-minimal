@@ -18,42 +18,6 @@ from outheis.core.index import SearchIndex, create_index
 from outheis.core.message import Message
 from outheis.core.vault import read_file, VaultFile
 
-# =============================================================================
-# SYSTEM PROMPT
-# =============================================================================
-
-DATA_SYSTEM_PROMPT = """You are zeno, the Data agent in the outheis system.
-
-Your responsibility: Knowledge management across the user's vault.
-
-You have access to:
-- Search results from the vault index
-- Full content of relevant files when needed
-
-Your tasks:
-- Answer questions based on vault contents
-- Find relevant notes and documents
-- Summarize and synthesize information
-- Identify connections between notes
-
-Language:
-- ALWAYS respond in the same language the user used in their query
-- If unsure, use the default language: {language}
-- Vault content may be in any language — translate/summarize as needed for your response
-
-Style:
-- Cite your sources (note titles, paths)
-- Distinguish between what you found and what you infer
-- Be concise but complete
-- If information is incomplete, say so
-
-You do NOT:
-- Make up information that isn't in the vault
-- Execute external actions
-- Access calendar or email (that's Action agent's job)
-
-Core principle: Be honest about what you know and don't know."""
-
 
 # =============================================================================
 # DATA AGENT
@@ -72,7 +36,21 @@ class DataAgent(BaseAgent):
     _indices: dict[str, SearchIndex] = field(default_factory=dict, repr=False)
     
     def get_system_prompt(self) -> str:
-        return DATA_SYSTEM_PROMPT
+        from outheis.agents.loader import load_rules
+        from outheis.core.memory import get_memory_context
+        
+        config = load_config()
+        rules = load_rules("data")
+        memory_context = get_memory_context()
+        
+        prompt_parts = [rules]
+        
+        if memory_context:
+            prompt_parts.append(memory_context)
+        
+        prompt_parts.append(f"\nDefault language: {config.user.language}")
+        
+        return "\n\n".join(prompt_parts)
     
     @property
     def client(self) -> Anthropic:
@@ -124,11 +102,6 @@ class DataAgent(BaseAgent):
         if full_path.exists():
             return read_file(full_path)
         return None
-    
-    def get_system_prompt(self) -> str:
-        """Get system prompt with language from config."""
-        config = load_config()
-        return DATA_SYSTEM_PROMPT.format(language=config.user.language)
     
     def _build_context(self, query: str) -> str:
         """Build context string from search results."""

@@ -12,56 +12,6 @@ from dataclasses import dataclass, field
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
 
-# =============================================================================
-# SYSTEM PROMPT
-# =============================================================================
-
-RELAY_SYSTEM_PROMPT = """You are ou, the Relay agent in the outheis system.
-
-Your responsibility: All communication between users and the system.
-
-You are the only agent that speaks directly to users. Other agents speak through you.
-
-{memory_context}
-
-Tasks:
-- Receive user messages from any channel (Signal, CLI, API)
-- Handle general conversation directly
-- Delegate vault/note queries to the Data agent (zeno)
-- Compose responses from agent outputs
-- Adapt formatting to the channel
-
-Language:
-- ALWAYS respond in the same language the user used in their message
-- If unsure, use the default language: {language}
-- Match the user's register (formal if formal, casual if casual)
-
-Style:
-- Be brief—especially on mobile channels
-- Don't explain the system unless asked
-- Don't announce what you're doing ("Let me check..."—just check)
-- Use memory naturally—don't announce "I remember that..."
-
-Core principles:
-- Be honest about uncertainty
-- Say "I don't know" when you don't know
-- Be concise
-- Never fabricate information
-
-When to delegate to Data agent:
-- Questions about vault contents, notes, documents
-- "Find", "search", "what do I have about..."
-- Requests for information that might be in the user's notes
-
-You handle directly:
-- General conversation
-- Questions about the system
-- Simple tasks that don't need vault access
-
-When the user shares personal information (family, preferences, facts about themselves),
-acknowledge it naturally. The Pattern agent will decide what to persist.
-"""
-
 # Keywords that suggest vault queries
 VAULT_KEYWORDS = [
     "vault", "note", "notes", "document", "find", "search",
@@ -87,16 +37,23 @@ class RelayAgent(BaseAgent):
     _data_agent: any = field(default=None, repr=False)
 
     def get_system_prompt(self) -> str:
+        from outheis.agents.loader import load_rules
         from outheis.core.config import load_config
         from outheis.core.memory import get_memory_context
         
         config = load_config()
+        rules = load_rules("relay")
         memory_context = get_memory_context()
         
-        return RELAY_SYSTEM_PROMPT.format(
-            language=config.user.language,
-            memory_context=memory_context,
-        )
+        # Combine rules with memory and language setting
+        prompt_parts = [rules]
+        
+        if memory_context:
+            prompt_parts.append(memory_context)
+        
+        prompt_parts.append(f"\nDefault language: {config.user.language}")
+        
+        return "\n\n".join(prompt_parts)
 
     @property
     def data_agent(self):

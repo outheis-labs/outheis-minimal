@@ -4,199 +4,75 @@ title: Memory
 
 # Memory
 
-*What outheis remembers about you — and how.*
+outheis remembers. Not everything — just what matters for working together well.
 
-## Memory vs. Vault
+## Two stores
 
-outheis maintains two separate knowledge stores:
+**Memory** holds meta-knowledge: who you are, how you work, what you're focused on.
 
-| | Memory | Vault |
-|---|--------|-------|
-| **Purpose** | Meta-knowledge about you | Your work content |
-| **Contains** | Facts, preferences, context | Documents, notes, projects |
-| **Updated by** | Pattern agent, explicit markers | You directly |
-| **Format** | Structured JSON | Markdown files |
+**Vault** holds your content: documents, notes, projects.
 
-**Memory** answers: *Who is this person? How do they want me to work?*
+Memory answers *who is this person?* Vault answers *what do they have?*
 
-**Vault** answers: *What information do they have?*
+## Memory types
 
-## Memory Types
+**user** — Personal facts. Your name, family, location, profession. Permanent until corrected.
 
-### user
+**feedback** — Working preferences. Response style, language, format. Permanent until corrected.
 
-Personal facts that don't change often.
+**context** — Current focus. Active projects, upcoming events. Expires after 14 days by default.
 
-Examples:
-- "User is 35 years old"
-- "Children: Leo (8) and Emma (5)"
-- "Lives in Munich"
-- "Works as a software engineer"
+## How memory forms
 
-**Decay:** Permanent (until corrected)
+The Pattern agent runs nightly. It reads recent conversations, extracts what's worth remembering, discards what isn't.
 
-### feedback
+Temporary moods don't become permanent traits. Stress on Tuesday doesn't define you on Wednesday.
 
-How you want outheis to behave.
-
-Examples:
-- "Prefers short, direct answers"
-- "Respond in German unless asked otherwise"
-- "Don't explain technical concepts — user is an expert"
-
-**Decay:** Permanent (until corrected)
-
-### context
-
-What you're currently focused on.
-
-Examples:
-- "Working on Project Alpha mobile app"
-- "Preparing for conference talk next week"
-- "Learning Japanese"
-
-**Decay:** 14 days by default (fades when no longer relevant)
-
-## How Memory is Created
-
-### Explicit Marker
-
-Prefix any message with `!` to store it immediately:
+For immediate storage, prefix with `!`:
 
 ```
 ! ich bin 35 jahre alt
-→ Stored in user memory
-
-! bitte immer kurze Antworten
-→ Stored in feedback memory
-
-! ich arbeite gerade an Project Alpha
-→ Stored in context memory (14 day decay)
+! bitte kurze Antworten
+! arbeite an Project Alpha
 ```
 
-Classification happens automatically based on content.
+Classification is automatic.
 
-### Pattern Agent Extraction
+## Rules
 
-The Pattern agent (rumi) runs nightly at 04:00 and:
+Rules are behavioral principles — how outheis should work with you.
 
-1. Reviews recent conversations
-2. Extracts memorable information
-3. Avoids duplicates with existing memory
-4. Assigns confidence scores
-5. Cleans up expired entries
+There are two layers:
 
-You can trigger this manually: `outheis pattern`
+**System rules** define what agents can do. Architectural boundaries. Set by developers.
 
-## Temporal Awareness
+**User rules** define how agents should do it. Style, preferences. Emergent from interaction.
 
-Not everything should be remembered forever.
+System rules live in code. User rules grow from memory.
 
-**Stored as permanent fact:**
-- "User has two children"
-- "Prefers formal communication"
+When the Pattern agent sees consistent patterns — five requests for brevity, repeated corrections — it promotes them to rules. Rules shape all future interactions.
 
-**NOT stored (temporary state):**
-- "User seems frustrated today"
-- "User is tired"
-- "User is stressed about deadline"
+```
+~/.outheis/human/rules/
+├── common.md      # All agents
+├── relay.md       # Conversation style
+├── data.md        # Search behavior
+└── ...
+```
 
-The Pattern agent is instructed to distinguish stable traits from temporary moods. Emotional states from a bad day won't become part of your permanent profile.
-
-## Viewing and Editing Memory
-
-### CLI
+## Viewing
 
 ```bash
-# View all memory
-outheis memory
-
-# Add entry manually
-outheis memory --add "user:My birthday is March 15"
-
-# Clear a type
-outheis memory --clear context
+outheis memory          # View all memory
+outheis memory --clear context   # Clear context entries
+outheis rules           # View rules
+outheis rules relay     # View relay rules only
 ```
 
-### Display Format
+## Coherent personality
 
-```
-Memory
-----------------------------------------
+outheis consists of five agents. You experience one assistant.
 
-[user] (3 entries)
-  1. User is 35 years old
-  2. Children: Leo (8), Emma (5) [!]
-  3. Lives in Munich [90%]
+Memory and rules maintain this coherence. Common rules ensure consistent behavior. Agent-specific rules allow appropriate specialization. Over time, a stable personality emerges — not programmed, but grown.
 
-[feedback] (1 entries)
-  1. Prefers short answers [!]
-
-[context] (2 entries)
-  1. Working on Project Alpha [↓12d]
-  2. Preparing conference talk [↓5d]
-```
-
-Markers:
-- `[!]` — Explicitly stored via `!` marker
-- `[90%]` — Confidence below 100%
-- `[↓12d]` — Expires in 12 days
-
-## Storage
-
-```
-~/.outheis/human/memory/
-├── user.json
-├── feedback.json
-└── context.json
-```
-
-Each file contains timestamped entries with metadata:
-
-```json
-{
-  "type": "user",
-  "updated_at": "2025-03-28T14:30:00",
-  "entries": [
-    {
-      "content": "User is 35 years old",
-      "created_at": "2025-03-28T14:30:00",
-      "updated_at": "2025-03-28T14:30:00",
-      "confidence": 1.0,
-      "source_count": 1,
-      "decay_days": null,
-      "is_explicit": true
-    }
-  ]
-}
-```
-
-## Integration with Agents
-
-Memory is injected into agent system prompts automatically:
-
-```
-# Memory
-
-## About the user
-- User is 35 years old
-- Children: Leo (8), Emma (5)
-
-## Working preferences
-- Prefers short answers
-
-## Current context
-- Working on Project Alpha
-```
-
-Agents use this naturally — they don't announce "I remember that..." but simply know.
-
-## Correction
-
-If outheis has wrong information:
-
-1. **Explicit correction:** `! ich bin 36, nicht 35`
-2. **CLI edit:** `outheis memory --clear user` then re-add
-3. **Direct file edit:** Modify JSON in `~/.outheis/human/memory/`
-
-The Pattern agent respects explicit (`!`) entries and won't override them with lower-confidence extractions.
+Like an old friend who knows how you work.

@@ -20,15 +20,28 @@ Work-in-progress tracking. Completed items are removed.
 - [x] Temporal decay for context entries
 - [x] Memory in agent system prompts
 
-### Phase 2: Agenda & Action
+### Phase 1.6: Rules System — ✓ COMPLETE
 
-- [ ] Agenda agent: Daily.md, Inbox.md, Exchange.md
-- [ ] Action agent: External imports
-- [ ] User rules (`human/rules/`)
+- [x] System Rules in `agents/rules/*.md`
+- [x] Rules loader (`agents/loader.py`)
+- [x] All agents use rules loader
+- [x] CLI `outheis rules` command
+- [x] User Rules infrastructure (Pattern agent can write to `human/rules/`)
 
-### Phase 3: Pattern & Polish
+### Phase 2: Agenda Agent
 
+- [ ] Agenda agent implementation
+  - [ ] Read/write Daily.md
+  - [ ] Process Inbox.md
+  - [ ] Manage Exchange.md for external sync
+- [ ] Delegation from Relay to Agenda
+- [ ] Schedule conflict detection
+
+### Phase 3: Polish & Integrations
+
+- [ ] **Action agent (hiro)**: External integrations (email, calendar APIs)
 - [ ] Pattern agent: Bot-chat analysis for behavioral patterns
+- [ ] Pattern agent: Promote feedback to User Rules after threshold
 - [ ] **Dynamic tag extraction with voting**
   - Extract candidate tags from vault content (YAKE/spaCy, local, fast)
   - Voting mechanism: tags gain weight through co-occurrence across documents
@@ -40,10 +53,53 @@ Work-in-progress tracking. Completed items are removed.
 - [ ] Signal transport
 - [ ] Web UI (localhost)
   - [ ] Memory view and edit interface
+  - [ ] Rules view and edit interface
 
 ---
 
 ## Architecture Decisions
+
+### Rules System
+
+Two-layer rule system separating architecture from preferences.
+
+**System Rules vs. User Rules:**
+
+| | System Rules | User Rules |
+|---|--------------|------------|
+| **Source** | Developers | Emergent from interaction |
+| **Location** | `src/outheis/agents/rules/` | `~/.outheis/human/rules/` |
+| **Purpose** | Boundaries, capabilities | Style, preferences |
+| **Example** | "MAY NOT access external APIs" | "User prefers concise responses" |
+
+**File Structure:**
+```
+src/outheis/agents/rules/
+├── common.md         # All agents
+├── relay.md          # Relay-specific
+├── data.md           # Data-specific
+├── agenda.md         # Agenda-specific
+├── action.md         # Action-specific
+└── pattern.md        # Pattern-specific
+
+~/.outheis/human/rules/
+├── common.md         # All agents (emergent)
+├── relay.md          # Relay-specific (emergent)
+└── ...
+```
+
+**Rule Loading:**
+```python
+def get_system_prompt(agent_name: str) -> str:
+    rules = load_rules(agent_name)  # System + User
+    memory = get_memory_context()
+    return f"{rules}\n\n{memory}"
+```
+
+**User Rule Emergence:**
+- Pattern agent detects repeated patterns (≥5 occurrences)
+- Promotes consistent preferences to `human/rules/*.md`
+- User can view/edit via `outheis rules`
 
 ### Memory System
 
@@ -82,24 +138,21 @@ Classification is automatic based on keywords.
 - Temporary moods/stress are NOT stored as character traits
 - Pattern agent cleans up expired entries during scheduled runs
 
-**Memory Entry Fields:**
-```python
-@dataclass
-class MemoryEntry:
-    content: str
-    type: MemoryType        # user/feedback/context
-    created_at: datetime
-    updated_at: datetime
-    confidence: float       # 0-1
-    source_count: int       # reinforcement counter
-    decay_days: int | None  # None = permanent
-    is_explicit: bool       # True if "!" marker used
-```
+### Coherent Identity
 
-**Integration:**
-- Relay agent includes memory context in system prompt
-- Pattern agent extracts memories during scheduled analysis (04:00)
-- CLI: `outheis memory` to view/edit
+Although outheis consists of multiple agents, users experience a single coherent assistant.
+
+**Maintained by:**
+- Common rules shared across all agents
+- Shared memory context in all prompts
+- Pattern agent ensuring consistent personality evolution
+
+**Personality emergence:**
+1. User interacts naturally over time
+2. Pattern agent extracts preferences to Memory
+3. Repeated patterns become User Rules
+4. Rules shape all agent behavior
+5. Result: Stable, personalized assistant
 
 ### Dispatcher Scheduler
 
@@ -132,26 +185,25 @@ The dispatcher includes a built-in scheduler for periodic tasks. This is more po
    - signal-cli or signal-cli-rest-api?
    - Polling interval?
 
-3. **Web UI Memory Editor?**
-   - Direct JSON edit vs. structured form?
+3. **Web UI Memory/Rules Editor?**
+   - Direct JSON/MD edit vs. structured form?
    - Conflict resolution if Pattern agent updates during edit?
 
 ---
 
 ## Completed
 
-Moved to `docs/` — see implementation documentation there.
-
 - ✓ Core modules (schema, message, queue, config)
 - ✓ Dispatcher daemon with routing
 - ✓ Dispatcher scheduler (select-based, no polling)
 - ✓ Lock manager (socket + priority)
 - ✓ Write-ahead logging
-- ✓ CLI transport (init, start, stop, send, chat, status, pattern, migrate, memory)
-- ✓ Relay agent with LLM + memory context
-- ✓ Data agent with vault search
-- ✓ Pattern agent with memory extraction
+- ✓ CLI transport (init, start, stop, send, chat, status, pattern, migrate, memory, rules)
+- ✓ Relay agent with LLM + memory + rules
+- ✓ Data agent with vault search + rules
+- ✓ Pattern agent with memory extraction + rules
 - ✓ Memory system (core/memory.py)
+- ✓ Rules system (agents/loader.py, agents/rules/)
 - ✓ Explicit `!` marker for memory
 - ✓ Agent stubs (agenda, action)
 - ✓ GitHub Actions CI

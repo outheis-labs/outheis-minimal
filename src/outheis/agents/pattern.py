@@ -21,21 +21,16 @@ from outheis.core.queue import read_last_n
 from outheis.core.config import get_messages_path, load_config
 
 # =============================================================================
-# SYSTEM PROMPT
+# EXTRACTION PROMPT (specialized for memory extraction task)
 # =============================================================================
 
-PATTERN_SYSTEM_PROMPT = """You are rumi, the Pattern agent in the outheis system.
+EXTRACTION_PROMPT = """Analyze the following conversation excerpts and extract NEW information
+that should be remembered about the user.
 
-Your responsibility: Analyze conversations and extract information worth remembering
-about the user. You maintain the system's persistent memory.
-
-Memory types you manage:
+Memory types:
 - user: Personal facts (family, age, location, preferences, background) — PERMANENT
 - feedback: How the user wants to be treated (communication style, format preferences) — PERMANENT
 - context: Current projects, ongoing topics, recent focus areas — TEMPORARY (14 days default)
-
-Your task now: Analyze the following conversation excerpts and extract NEW information
-that should be remembered. Only extract clear, explicit information—not assumptions.
 
 Language: {language}
 
@@ -101,8 +96,13 @@ class PatternAgent(BaseAgent):
         return self._client
 
     def get_system_prompt(self) -> str:
+        from outheis.agents.loader import load_rules
+        return load_rules("pattern")
+    
+    def get_extraction_prompt(self) -> str:
+        """Get specialized prompt for memory extraction."""
         config = load_config()
-        return PATTERN_SYSTEM_PROMPT.format(language=config.user.language)
+        return EXTRACTION_PROMPT.format(language=config.user.language)
 
     def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message (direct query to pattern agent)."""
@@ -213,7 +213,7 @@ Extract any NEW information worth remembering. Respond in JSON only."""
             response = self.client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=1000,
-                system=self.get_system_prompt(),
+                system=self.get_extraction_prompt(),
                 messages=[{"role": "user", "content": user_prompt}],
             )
             
