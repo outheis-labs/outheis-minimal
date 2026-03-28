@@ -28,18 +28,16 @@ Work-in-progress tracking. Completed items are removed.
 - [x] CLI `outheis rules` command
 - [x] User Rules infrastructure (Pattern agent can write to `human/rules/`)
 
-### Phase 2: Agenda Agent
+### Phase 2: Agenda Agent — ✓ COMPLETE
 
-- [ ] Agenda agent implementation
-  - [ ] Read/write Daily.md
-  - [ ] Process Inbox.md
-  - [ ] Manage Exchange.md for external sync
-- [ ] Delegation from Relay to Agenda
-- [ ] Schedule conflict detection
+- [x] Agenda agent implementation (read Agenda files, LLM processing)
+- [x] Delegation from Relay to Agenda (@cato, schedule keywords)
+- [x] Date awareness in system prompt
 
 ### Phase 3: Polish & Integrations
 
 - [ ] **Action agent (hiro)**: External integrations (email, calendar APIs)
+- [ ] Agenda agent: Schedule conflict detection, write operations
 - [ ] Pattern agent: Bot-chat analysis for behavioral patterns
 - [ ] Pattern agent: Promote feedback to User Rules after threshold
 - [ ] **Dynamic tag extraction with voting**
@@ -199,12 +197,13 @@ The dispatcher includes a built-in scheduler for periodic tasks. This is more po
 - ✓ Lock manager (socket + priority)
 - ✓ Write-ahead logging
 - ✓ CLI transport (init, start, stop, send, chat, status, pattern, migrate, memory, rules)
-- ✓ Relay agent with LLM + memory + rules
+- ✓ Relay agent with LLM + memory + rules + delegation
 - ✓ Data agent with vault search + rules
+- ✓ Agenda agent with schedule queries + rules
 - ✓ Pattern agent with memory extraction + rules
 - ✓ Memory system (core/memory.py)
 - ✓ Rules system (agents/loader.py, agents/rules/)
 - ✓ Explicit `!` marker for memory
-- ✓ Agent stubs (agenda, action)
+- ✓ Agent stubs (action)
 - ✓ GitHub Actions CI
-- ✓ Test fixtures (vault)
+- ✓ Test fixtures (vault with Agenda/)

@@ -19,6 +19,14 @@ VAULT_KEYWORDS = [
     "in my", "did i write", "where is", "show me",
 ]
 
+# Keywords that suggest agenda/schedule queries
+AGENDA_KEYWORDS = [
+    "schedule", "calendar", "appointment", "meeting", "today",
+    "tomorrow", "next week", "this week", "free time", "available",
+    "busy", "when am i", "what's on", "daily", "inbox",
+    "termine", "termin", "kalender", "morgen", "woche",
+]
+
 
 # =============================================================================
 # RELAY AGENT
@@ -30,11 +38,13 @@ class RelayAgent(BaseAgent):
     Relay agent handles all user communication.
 
     Delegates vault queries to Data agent.
+    Delegates schedule queries to Agenda agent.
     Handles general conversation directly.
     """
 
     name: str = "relay"
     _data_agent: any = field(default=None, repr=False)
+    _agenda_agent: any = field(default=None, repr=False)
 
     def get_system_prompt(self) -> str:
         from outheis.agents.loader import load_rules
@@ -63,6 +73,14 @@ class RelayAgent(BaseAgent):
             self._data_agent = create_data_agent()
         return self._data_agent
 
+    @property
+    def agenda_agent(self):
+        """Lazy load Agenda agent for delegation."""
+        if self._agenda_agent is None:
+            from outheis.agents.agenda import create_agenda_agent
+            self._agenda_agent = create_agenda_agent()
+        return self._agenda_agent
+
     def _should_delegate_to_data(self, text: str) -> bool:
         """Check if query should go to Data agent."""
         text_lower = text.lower()
@@ -73,6 +91,21 @@ class RelayAgent(BaseAgent):
         
         # Keyword matching
         for keyword in VAULT_KEYWORDS:
+            if keyword in text_lower:
+                return True
+        
+        return False
+
+    def _should_delegate_to_agenda(self, text: str) -> bool:
+        """Check if query should go to Agenda agent."""
+        text_lower = text.lower()
+        
+        # Explicit mention
+        if "@cato" in text_lower:
+            return True
+        
+        # Keyword matching
+        for keyword in AGENDA_KEYWORDS:
             if keyword in text_lower:
                 return True
         
@@ -99,8 +132,10 @@ class RelayAgent(BaseAgent):
                 reply_to=msg.id,
             )
 
-        # Check for delegation
-        if self._should_delegate_to_data(text):
+        # Check for delegation (order matters: more specific first)
+        if self._should_delegate_to_agenda(text):
+            response_text = self._handle_with_agenda_agent(text, msg)
+        elif self._should_delegate_to_data(text):
             response_text = self._handle_with_data_agent(text, msg)
         else:
             # Handle directly
@@ -123,6 +158,23 @@ class RelayAgent(BaseAgent):
             return answer
         except Exception as e:
             return f"I tried to search your vault but encountered an error: {e}"
+
+    def _handle_with_agenda_agent(self, text: str, msg: Message) -> str:
+        """Delegate to Agenda agent and format response."""
+        try:
+            # Create a message for the agenda agent
+            agenda_msg = Message(
+                to="agenda",
+                type="query",
+                payload={"text": text},
+                conversation_id=msg.conversation_id,
+            )
+            response = self.agenda_agent.handle(agenda_msg)
+            if response:
+                return response.payload.get("text", "No response from agenda agent.")
+            return "No response from agenda agent."
+        except Exception as e:
+            return f"I tried to check your schedule but encountered an error: {e}"
 
     def _generate_response(
         self,
