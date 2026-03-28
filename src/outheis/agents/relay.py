@@ -21,23 +21,25 @@ ROUTING_PROMPT = """You are a routing classifier for a personal AI assistant.
 
 The user has sent a message. Classify where it should be handled:
 
-- "data" — Questions about information stored in the user's vault (notes, documents, contacts, addresses, health info, projects, family, anything the user has written down in files)
-- "agenda" — Questions about schedule, calendar, appointments, what's happening today/tomorrow, availability
-- "relay" — General conversation, questions about the user's identity/name (we know that), chitchat, requests that don't need vault data
+- "data" — Questions that require SEARCHING the user's vault (notes, documents, files). Use for: "find...", "what's in my notes about...", "search for...", or when the user explicitly references their documents/vault.
+- "agenda" — Questions about schedule, calendar, appointments, what's happening today/tomorrow/this week, availability
+- "relay" — Everything else: general conversation, personal facts/preferences (we remember those), chitchat, explanations, advice
 
 Respond with exactly one word: data, agenda, or relay
 
 Examples:
-- "wo wohne ich?" → data
-- "what's my doctor's phone number?" → data  
-- "erzähl mir was über meine projekte" → data
+- "was steht in meinen notizen über X?" → data
+- "find my notes about the project" → data
+- "what's my doctor's phone number?" → data
+- "suche nach der datei..." → data
 - "was steht heute an?" → agenda
 - "bin ich morgen frei?" → agenda
+- "habe ich am freitag zeit?" → agenda
 - "wie heisse ich?" → relay
-- "what's my name?" → relay
+- "was trinke ich gerne?" → relay
+- "wo wohne ich?" → relay
 - "wie geht es dir?" → relay
-- "erkläre mir was über Python" → relay
-- "was ist die hauptstadt von frankreich?" → relay"""
+- "erkläre mir was über Python" → relay"""
 
 
 def classify_query(client, text: str) -> str:
