@@ -419,9 +419,12 @@ def start_daemon(foreground: bool = False) -> bool:
         print(f"Dispatcher already running (PID {existing_pid})")
         return False
 
+    # Load config
+    config = load_config()
+
     # Validate API keys BEFORE forking
     print("Validating API keys...")
-    errors = _validate_api_keys()
+    errors = _validate_api_keys(config)
     if errors:
         for err in errors:
             print(f"  ✗ {err}")
@@ -431,7 +434,7 @@ def start_daemon(foreground: bool = False) -> bool:
 
     if foreground:
         # Run in foreground
-        dispatcher = Dispatcher()
+        dispatcher = Dispatcher(config=config)
         dispatcher.run()
         return True
     else:
@@ -468,40 +471,65 @@ def start_daemon(foreground: bool = False) -> bool:
             sys.exit(0)
 
 
-def _validate_api_keys() -> list[str]:
+def _validate_api_keys(config: Config) -> list[str]:
     """
-    Validate API keys for all enabled agents.
+    Validate API keys for configured providers.
     
     Returns list of errors, empty if all valid.
     """
     import os as _os
     errors = []
     
-    # Check Anthropic API key (used by relay, data, pattern)
-    api_key = _os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        errors.append("ANTHROPIC_API_KEY not set")
-    elif not api_key.startswith("sk-ant-"):
-        errors.append("ANTHROPIC_API_KEY has invalid format")
-    else:
-        # Quick validation: try a minimal API call
-        try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=api_key)
-            # Minimal request to validate key
-            client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=1,
-                messages=[{"role": "user", "content": "hi"}],
-            )
-        except anthropic.AuthenticationError:
-            errors.append("ANTHROPIC_API_KEY is invalid")
-        except anthropic.APIError as e:
-            # Rate limit or other API error is OK - key is valid
-            if "authentication" in str(e).lower():
-                errors.append(f"ANTHROPIC_API_KEY error: {e}")
-        except Exception as e:
-            errors.append(f"API key validation failed: {e}")
+    # Collect which providers are actually used
+    used_providers = set()
+    for agent_cfg in config.agents.values():
+        if agent_cfg.enabled:
+            model_cfg = config.llm.get_model(agent_cfg.model)
+            used_providers.add(model_cfg.provider)
+    
+    # Validate each used provider
+    for provider_name in used_providers:
+        provider_cfg = config.llm.get_provider(provider_name)
+        
+        if provider_name == "anthropic":
+            # Check config first, then environment
+            api_key = provider_cfg.api_key or _os.environ.get("ANTHROPIC_API_KEY")
+            if not api_key:
+                errors.append("Anthropic API key not set (config or ANTHROPIC_API_KEY)")
+            elif not api_key.startswith("sk-ant-"):
+                errors.append("Anthropic API key has invalid format")
+            else:
+                # Quick validation: try a minimal API call
+                try:
+                    import anthropic
+                    client = anthropic.Anthropic(api_key=api_key)
+                    client.messages.create(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=1,
+                        messages=[{"role": "user", "content": "hi"}],
+                    )
+                except anthropic.AuthenticationError:
+                    errors.append("Anthropic API key is invalid")
+                except anthropic.APIError as e:
+                    # Rate limit or other API error is OK - key is valid
+                    if "authentication" in str(e).lower():
+                        errors.append(f"Anthropic API key error: {e}")
+                except Exception as e:
+                    errors.append(f"API key validation failed: {e}")
+        
+        elif provider_name == "ollama":
+            # Ollama doesn't need API key, just check if reachable
+            base_url = provider_cfg.base_url or "http://localhost:11434"
+            try:
+                import urllib.request
+                urllib.request.urlopen(f"{base_url}/api/tags", timeout=2)
+            except Exception:
+                errors.append(f"Ollama not reachable at {base_url}")
+        
+        elif provider_name == "openai":
+            api_key = provider_cfg.api_key or _os.environ.get("OPENAI_API_KEY")
+            if not api_key:
+                errors.append("OpenAI API key not set (config or OPENAI_API_KEY)")
     
     return errors
 
