@@ -422,6 +422,14 @@ def start_daemon(foreground: bool = False) -> bool:
     # Load config
     config = load_config()
 
+    # Validate paths
+    print("Validating paths...")
+    path_warnings = _validate_paths(config)
+    for warn in path_warnings:
+        print(f"  ⚠ {warn}")
+    if not path_warnings:
+        print("  ✓ Paths valid")
+
     # Validate API keys BEFORE forking
     print("Validating API keys...")
     errors = _validate_api_keys(config)
@@ -469,6 +477,39 @@ def start_daemon(foreground: bool = False) -> bool:
             dispatcher = Dispatcher()
             dispatcher.run()
             sys.exit(0)
+
+
+def _validate_paths(config: Config) -> list[str]:
+    """
+    Validate vault and agenda paths.
+    
+    Returns list of warnings (not errors — dispatcher can still start).
+    """
+    warnings = []
+    
+    # Check vault paths
+    vaults = config.user.all_vaults()
+    if not vaults:
+        warnings.append("No vault configured")
+    else:
+        for vault in vaults:
+            if not vault.exists():
+                warnings.append(f"Vault not found: {vault}")
+    
+    # Check Agenda directory if agenda agent is enabled
+    agenda_config = config.agents.get("agenda")
+    if agenda_config and agenda_config.enabled:
+        primary_vault = config.user.primary_vault()
+        agenda_dir = primary_vault / "Agenda"
+        if not agenda_dir.exists():
+            warnings.append(f"Agenda directory not found: {agenda_dir}")
+        else:
+            # Check for required files
+            for filename in ["Daily.md", "Inbox.md"]:
+                if not (agenda_dir / filename).exists():
+                    warnings.append(f"Agenda file missing: {agenda_dir / filename}")
+    
+    return warnings
 
 
 def _validate_api_keys(config: Config) -> list[str]:
