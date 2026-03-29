@@ -159,7 +159,7 @@ class RelayAgent(BaseAgent):
         tools = [
             {
                 "name": "search_vault",
-                "description": "Search the user's vault (notes, documents, files) for personal information. USE THIS when asked about personal facts you don't know from Memory: where they live, contacts, family details, projects, health info, or anything personal that might be in their notes.",
+                "description": "Search the user's vault (notes, documents, files) for personal information. USE THIS when asked about personal facts you don't know from Memory: where they live, contacts, family details, projects, health info, or anything personal that might be in their notes. Also use for questions about specific files or directories.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -183,6 +183,20 @@ class RelayAgent(BaseAgent):
                         }
                     },
                     "required": ["query"]
+                }
+            },
+            {
+                "name": "get_config",
+                "description": "Get outheis system configuration. Use when the user asks about vault paths, which models are used, whether Signal is enabled, agent settings, or any other system configuration.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "aspect": {
+                            "type": "string",
+                            "description": "What config to retrieve: 'vault', 'signal', 'agents', 'models', or 'all'"
+                        }
+                    },
+                    "required": ["aspect"]
                 }
             }
         ]
@@ -231,6 +245,8 @@ class RelayAgent(BaseAgent):
                         )
                         agenda_response = self.agenda_agent.handle(agenda_msg)
                         result = agenda_response.payload.get("text", "") if agenda_response else "Keine Termine gefunden."
+                    elif block.name == "get_config":
+                        result = self._get_config_info(block.input.get("aspect", "all"))
                     else:
                         result = "Tool not found"
                     
@@ -263,6 +279,55 @@ class RelayAgent(BaseAgent):
             if hasattr(block, "text"):
                 return block.text
         return "Ich konnte keine Antwort formulieren."
+
+    def _get_config_info(self, aspect: str) -> str:
+        """Get configuration information for the user."""
+        from outheis.core.config import load_config
+        
+        config = load_config()
+        
+        if aspect == "vault":
+            vaults = config.human.all_vaults()
+            return f"Vault paths: {[str(v) for v in vaults]}"
+        
+        elif aspect == "signal":
+            if config.signal.enabled:
+                return (
+                    f"Signal is enabled.\n"
+                    f"Bot phone: {config.signal.bot_phone}\n"
+                    f"Bot name: {config.signal.bot_name}\n"
+                    f"Allowed contacts: {len(config.signal.allowed)}"
+                )
+            else:
+                return "Signal is not enabled."
+        
+        elif aspect == "agents":
+            lines = ["Agent configuration:"]
+            for name, agent_cfg in config.agents.items():
+                status = "enabled" if agent_cfg.enabled else "disabled"
+                lines.append(f"  {name} ({agent_cfg.name}): {status}, model: {agent_cfg.model}")
+            return "\n".join(lines)
+        
+        elif aspect == "models":
+            lines = ["Model aliases:"]
+            for alias, model_cfg in config.llm.models.items():
+                lines.append(f"  {alias}: {model_cfg.provider}/{model_cfg.name}")
+            return "\n".join(lines)
+        
+        else:  # "all" or unknown
+            lines = [
+                f"Human: {config.human.name}",
+                f"Language: {config.human.language}",
+                f"Timezone: {config.human.timezone}",
+                f"Vaults: {[str(v) for v in config.human.all_vaults()]}",
+                f"Signal: {'enabled' if config.signal.enabled else 'disabled'}",
+                "",
+                "Agents:",
+            ]
+            for name, agent_cfg in config.agents.items():
+                status = "✓" if agent_cfg.enabled else "✗"
+                lines.append(f"  {status} {name} ({agent_cfg.name}): {agent_cfg.model}")
+            return "\n".join(lines)
 
 
 # =============================================================================

@@ -58,14 +58,14 @@ class IndexEntry:
         """Create index entry from vault file."""
         content_hash = hashlib.md5(vf.content.encode()).hexdigest()
         
-        # Build searchable text: title + tags + first 500 chars of body
-        body_preview = vf.body[:500].replace("\n", " ").strip()
-        searchable = f"{vf.title} {' '.join(vf.tags)} {body_preview}".lower()
-        
         try:
             rel_path = str(vf.path.relative_to(vault_root))
         except ValueError:
             rel_path = str(vf.path)
+        
+        # Build searchable text: path + title + tags + first 500 chars of body
+        body_preview = vf.body[:500].replace("\n", " ").strip()
+        searchable = f"{rel_path} {vf.title} {' '.join(vf.tags)} {body_preview}".lower()
         
         return cls(
             path=rel_path,
@@ -216,6 +216,60 @@ class SearchIndex:
                 tag_lower = tag.lower()
                 tag_counts[tag_lower] = tag_counts.get(tag_lower, 0) + 1
         return tag_counts
+    
+    def list_path(self, path: str = "") -> dict:
+        """
+        List contents of a path in the vault.
+        
+        Returns:
+            {
+                "exists": bool,
+                "is_dir": bool,
+                "files": [str],      # If directory
+                "dirs": [str],       # If directory  
+                "content": str,      # If file
+            }
+        """
+        target = self.vault_root / path if path else self.vault_root
+        
+        if not target.exists():
+            return {"exists": False}
+        
+        if target.is_file():
+            return {
+                "exists": True,
+                "is_dir": False,
+                "path": str(target.relative_to(self.vault_root)),
+            }
+        
+        # It's a directory
+        files = []
+        dirs = []
+        
+        for item in sorted(target.iterdir()):
+            if item.name.startswith("."):
+                continue
+            rel = str(item.relative_to(self.vault_root))
+            if item.is_dir():
+                dirs.append(rel)
+            else:
+                files.append(rel)
+        
+        return {
+            "exists": True,
+            "is_dir": True,
+            "path": path or "/",
+            "dirs": dirs,
+            "files": files,
+        }
+    
+    def find_by_path(self, pattern: str) -> list[IndexEntry]:
+        """Find entries where path contains pattern."""
+        pattern_lower = pattern.lower()
+        return [
+            entry for entry in self.entries.values()
+            if pattern_lower in entry.path.lower()
+        ]
 
 
 # =============================================================================

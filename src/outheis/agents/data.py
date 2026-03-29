@@ -87,6 +87,24 @@ class DataAgent(BaseAgent):
                 results.append((index, entry))
         return results
     
+    def find_by_path(self, pattern: str) -> list[tuple[SearchIndex, any]]:
+        """Find files by path pattern across all vaults."""
+        results = []
+        for index in self._get_indices():
+            for entry in index.find_by_path(pattern):
+                results.append((index, entry))
+        return results
+    
+    def list_path(self, path: str = "") -> list[dict]:
+        """List contents of a path across all vaults."""
+        results = []
+        for index in self._get_indices():
+            info = index.list_path(path)
+            if info.get("exists"):
+                info["vault"] = str(index.vault_root)
+                results.append(info)
+        return results
+    
     def get_file_content(self, index: SearchIndex, path: str) -> VaultFile | None:
         """Load full file content."""
         full_path = index.vault_root / path
@@ -94,15 +112,49 @@ class DataAgent(BaseAgent):
             return read_file(full_path)
         return None
     
-    def _build_context(self, query: str) -> str:
-        """Build context string from search results."""
-        results = self.search(query, limit=5)
+    def _build_context(self, query: str) -> tuple[str, list[str]]:
+        """
+        Build context string from search results.
         
-        if not results:
-            return "No relevant documents found in the vault."
+        Returns (context_text, list_of_source_paths)
+        """
+        # Check if query is asking about a specific path/directory
+        path_keywords = ["verzeichnis", "ordner", "folder", "directory", "datei", "file", "pfad", "path"]
+        is_path_query = any(kw in query.lower() for kw in path_keywords)
         
-        context_parts = []
-        for index, entry in results:
+        results = []
+        sources = []
+        
+        # If asking about paths, also do path-based search
+        if is_path_query:
+            # Extract potential path names from query
+            words = query.split()
+            for word in words:
+                if len(word) > 2 and word not in path_keywords:
+                    # Try listing this as a path
+                    path_results = self.list_path(word)
+                    for pr in path_results:
+                        if pr.get("is_dir"):
+                            results.append(f"Directory '{word}' exists in vault:\n  Subdirs: {pr.get('dirs', [])}\n  Files: {pr.get('files', [])}")
+                    
+                    # Try finding files with this in path
+                    for index, entry in self.find_by_path(word):
+                        if entry.path not in sources:
+                            sources.append(entry.path)
+        
+        # Regular content search
+        search_results = self.search(query, limit=5)
+        
+        if not search_results and not results:
+            return "No relevant documents found in the vault.", []
+        
+        context_parts = list(results)  # Start with path results
+        
+        for index, entry in search_results:
+            if entry.path in sources:
+                continue
+            sources.append(entry.path)
+            
             # Load full content for top results
             vf = self.get_file_content(index, entry.path)
             if vf:
@@ -112,12 +164,13 @@ class DataAgent(BaseAgent):
                     body += "\n[... truncated ...]"
                 
                 context_parts.append(
-                    f"=== {entry.title} ({entry.path}) ===\n"
+                    f"=== {entry.title} ===\n"
+                    f"Source: {entry.path}\n"
                     f"Tags: {', '.join(entry.tags) if entry.tags else 'none'}\n\n"
                     f"{body}"
                 )
         
-        return "\n\n".join(context_parts)
+        return "\n\n".join(context_parts), sources
     
     def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message with LLM."""
@@ -135,7 +188,7 @@ class DataAgent(BaseAgent):
             )
         
         # Build context from vault search
-        context = self._build_context(query)
+        context, sources = self._build_context(query)
         
         # Prepare prompt
         user_content = f"""The user is asking about their vault contents.
@@ -143,10 +196,18 @@ class DataAgent(BaseAgent):
 VAULT SEARCH RESULTS:
 {context}
 
+SOURCES FOUND:
+{chr(10).join(f'- {s}' for s in sources) if sources else '(none)'}
+
 USER QUERY:
 {query}
 
-Based on the vault contents above, answer the user's query. If the information isn't in the vault, say so clearly. Match the language of the user's query."""
+Instructions:
+1. Answer based on the vault contents above
+2. ALWAYS mention the source file path when citing information (e.g., "In Projects/MyProject.md...")
+3. If asked about a specific file or directory, confirm whether it exists
+4. If the information isn't in the vault, say so clearly
+5. Match the language of the user's query"""
 
         try:
             from outheis.core.llm import call_llm
@@ -164,7 +225,7 @@ Based on the vault contents above, answer the user's query. If the information i
                 to=response_to,
                 payload={
                     "answer": answer,
-                    "sources": [entry.path for _, entry in self.search(query, limit=5)],
+                    "sources": sources,
                 },
                 conversation_id=msg.conversation_id,
                 reply_to=msg.id,
@@ -184,17 +245,25 @@ Based on the vault contents above, answer the user's query. If the information i
         
         Returns the answer string directly, not a Message.
         """
-        context = self._build_context(query)
+        context, sources = self._build_context(query)
         
         user_content = f"""The user wants to search their vault (notes, documents, files).
 
 VAULT SEARCH RESULTS:
 {context}
 
+SOURCES FOUND:
+{chr(10).join(f'- {s}' for s in sources) if sources else '(none)'}
+
 USER QUERY:
 {query}
 
-Based on the vault search results above, answer the user's query. If nothing relevant was found, say so clearly. Match the language of the user's query."""
+Instructions:
+1. Answer based on the vault search results above
+2. ALWAYS mention the source file path when citing information (e.g., "In Projects/MyProject.md...")
+3. If asked about a specific file or directory, confirm whether it exists
+4. If nothing relevant was found, say so clearly
+5. Match the language of the user's query"""
 
         try:
             from outheis.core.llm import call_llm
