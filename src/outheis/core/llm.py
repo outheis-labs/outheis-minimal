@@ -6,8 +6,10 @@ Provides a unified interface for different LLM providers:
 - Ollama (local models)
 - OpenAI (future)
 
+Config is loaded once at startup. Call init_llm() from dispatcher.
+
 Usage:
-    from outheis.core.llm import get_client, call_llm
+    from outheis.core.llm import call_llm
     
     # Simple call
     response = call_llm(
@@ -26,30 +28,61 @@ Usage:
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
-from outheis.core.config import load_config, LLMConfig
+from outheis.core.config import LLMConfig
 
 
-def get_client(config: LLMConfig | None = None):
+# =============================================================================
+# GLOBAL STATE (set once at startup)
+# =============================================================================
+
+_config: LLMConfig | None = None
+_client: Any = None
+
+
+def init_llm(config: LLMConfig) -> None:
     """
-    Get LLM client based on config.
+    Initialize LLM with config. Called once at dispatcher startup.
+    """
+    global _config, _client
+    _config = config
+    _client = None  # Will be created on first use
+
+
+def get_llm_config() -> LLMConfig:
+    """
+    Get LLM config.
     
-    Returns appropriate client for the configured provider.
+    Returns cached config, or loads from file if not initialized.
     """
-    if config is None:
-        config = load_config().llm
+    global _config
+    if _config is None:
+        from outheis.core.config import load_config
+        _config = load_config().llm
+    return _config
+
+
+def get_client() -> Any:
+    """
+    Get LLM client. Creates on first use, then reuses.
+    """
+    global _client
+    
+    if _client is not None:
+        return _client
+    
+    config = get_llm_config()
     
     if config.provider == "anthropic":
         import anthropic
-        return anthropic.Anthropic()
+        _client = anthropic.Anthropic()
     
     elif config.provider == "ollama":
         # Ollama uses OpenAI-compatible API
         import anthropic
         base_url = config.base_url or "http://localhost:11434/v1"
-        return anthropic.Anthropic(
+        _client = anthropic.Anthropic(
             base_url=base_url,
             api_key="ollama",  # Ollama doesn't need a real key
         )
@@ -59,22 +92,21 @@ def get_client(config: LLMConfig | None = None):
     
     else:
         raise ValueError(f"Unknown provider: {config.provider}")
+    
+    return _client
 
 
-def resolve_model(model: str, config: LLMConfig | None = None) -> str:
+def resolve_model(model: str) -> str:
     """
     Resolve model alias to actual model name.
     
     Args:
         model: Model alias ("fast", "capable") or explicit model name
-        config: LLM configuration (loaded from file if not provided)
     
     Returns:
         Actual model name to use
     """
-    if config is None:
-        config = load_config().llm
-    
+    config = get_llm_config()
     return config.get_model(model)
 
 
@@ -84,7 +116,6 @@ def call_llm(
     system: str | None = None,
     tools: list[dict[str, Any]] | None = None,
     max_tokens: int = 4096,
-    config: LLMConfig | None = None,
 ) -> Any:
     """
     Call LLM with messages.
@@ -95,16 +126,12 @@ def call_llm(
         system: System prompt (optional)
         tools: Tool definitions (optional)
         max_tokens: Maximum response tokens
-        config: LLM configuration (loaded from file if not provided)
     
     Returns:
         API response object
     """
-    if config is None:
-        config = load_config().llm
-    
-    client = get_client(config)
-    actual_model = resolve_model(model, config)
+    client = get_client()
+    actual_model = resolve_model(model)
     
     kwargs: dict[str, Any] = {
         "model": actual_model,

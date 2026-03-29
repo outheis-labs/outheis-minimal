@@ -308,11 +308,15 @@ class Dispatcher:
     def run(self) -> None:
         """Run the dispatcher daemon."""
         from outheis.core.queue import recover_pending
+        from outheis.core.llm import init_llm
         from outheis.dispatcher.lock import LockManager
 
         init_directories()
         write_pid()
         self.running = True
+        
+        # Initialize LLM with config (once, at startup)
+        init_llm(self.config.llm)
         
         # Set up scheduled tasks
         self._setup_scheduled_tasks()
