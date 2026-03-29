@@ -163,18 +163,29 @@ class SignalRPC:
             "message": text,
         })
     
-    def send_to_phone(self, phone: str, text: str) -> None:
+    def send_to_phone(self, phone: str, text: str) -> bool:
         """
         Send message to a recipient by phone number.
         
         Args:
             phone: Recipient's phone number (e.g. +4917664104484)
             text: Message text
+            
+        Returns:
+            True if sent successfully
         """
-        self._send_request("send", {
-            "recipient": [phone],
-            "message": text,
-        })
+        try:
+            response = self._send_request("send", {
+                "recipient": [phone],
+                "message": text,
+            })
+            if "error" in response:
+                print(f"⚠️ Send error: {response['error']}", flush=True)
+                return False
+            return True
+        except Exception as e:
+            print(f"⚠️ Send exception: {e}", flush=True)
+            return False
     
     def get_user_id(self, phone: str) -> str | None:
         """
