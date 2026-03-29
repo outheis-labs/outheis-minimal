@@ -71,7 +71,7 @@ def get_archive_dir() -> Path:
 class UserConfig:
     """User configuration."""
     name: str = "Human"
-    phone: str | None = None
+    phone: list[str] = field(default_factory=list)  # One or more phone numbers
     language: str = "en"
     timezone: str = "Europe/Berlin"
     vault: list[str] = field(default_factory=lambda: ["~/Documents/Vault"])
@@ -226,9 +226,16 @@ def load_config() -> Config:
 
     # User
     user_data = data.get("user", {})
+    # Handle phone as string or list
+    phone_raw = user_data.get("phone", [])
+    if isinstance(phone_raw, str):
+        phone_list = [phone_raw] if phone_raw else []
+    else:
+        phone_list = phone_raw or []
+    
     user = UserConfig(
         name=user_data.get("name", "Human"),
-        phone=user_data.get("phone"),
+        phone=phone_list,
         language=user_data.get("language", "en"),
         timezone=user_data.get("timezone", "Europe/Berlin"),
         vault=user_data.get("vault", ["~/Documents/Vault"]),

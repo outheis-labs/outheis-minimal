@@ -43,10 +43,10 @@ class SignalTransport(Transport):
             raise ValueError("user.phone not configured")
         
         self.bot_phone = config.signal.bot_phone
-        self.user_phone = config.user.phone
+        self.user_phones: set[str] = set(config.user.phone)  # All allowed phones
         
-        # Load learned UUID from persistent storage
-        self.user_uuid: str | None = self._load_user_uuid()
+        # Load learned UUIDs from persistent storage
+        self.known_uuids: dict[str, str] = self._load_known_uuids()  # phone -> uuid
         
         self.rpc = SignalRPC(self.bot_phone)
         self.queue_path = get_messages_path()
@@ -68,27 +68,30 @@ class SignalTransport(Transport):
         from outheis.core.config import get_human_dir
         return get_human_dir() / "signal.json"
     
-    def _load_user_uuid(self) -> str | None:
-        """Load learned user UUID from persistent storage."""
+    def _load_known_uuids(self) -> dict[str, str]:
+        """Load known phone->UUID mappings from persistent storage."""
         import json
         path = self._get_signal_state_path()
         if path.exists():
             try:
                 data = json.loads(path.read_text())
-                uuid = data.get("user_uuid")
-                if uuid:
-                    print(f"📝 Loaded user UUID: {uuid[:8]}...", flush=True)
-                return uuid
+                # Handle old format (single user_uuid)
+                if "user_uuid" in data:
+                    phone = data.get("user_phone", "")
+                    if phone:
+                        return {phone: data["user_uuid"]}
+                # New format
+                return data.get("known_uuids", {})
             except Exception:
                 pass
-        return None
+        return {}
     
-    def _save_user_uuid(self, uuid: str) -> None:
-        """Save learned user UUID to persistent storage."""
+    def _save_known_uuids(self) -> None:
+        """Save phone->UUID mappings to persistent storage."""
         import json
         path = self._get_signal_state_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        data = {"user_uuid": uuid, "user_phone": self.user_phone}
+        data = {"known_uuids": self.known_uuids}
         path.write_text(json.dumps(data, indent=2))
     
     def _init_whisper(self) -> None:
@@ -102,24 +105,26 @@ class SignalTransport(Transport):
             print("ℹ️  Whisper not available (install faster-whisper for voice)", flush=True)
     
     def _is_allowed(self, msg: SignalMessage) -> bool:
-        """Check if sender is allowed (single-user mode: only user.phone/uuid)."""
-        # Check learned UUID
-        if self.user_uuid and msg.sender_uuid == self.user_uuid:
+        """Check if sender is allowed (user.phone list)."""
+        # Check if UUID is in known mappings
+        if msg.sender_uuid in self.known_uuids.values():
             return True
         
         # Check phone number — learn and save UUID
-        if msg.sender_phone and msg.sender_phone == self.user_phone:
-            self.user_uuid = msg.sender_uuid
-            self._save_user_uuid(msg.sender_uuid)
-            print(f"📝 Learned and saved user UUID: {msg.sender_uuid[:8]}...", flush=True)
+        if msg.sender_phone and msg.sender_phone in self.user_phones:
+            self.known_uuids[msg.sender_phone] = msg.sender_uuid
+            self._save_known_uuids()
+            print(f"📝 Learned UUID for {msg.sender_phone}: {msg.sender_uuid[:8]}...", flush=True)
             return True
         
-        # First-time setup: no UUID known yet, accept first message and save
-        # This is safe because config requires user.phone to be set
-        if not self.user_uuid and msg.sender_uuid:
-            print(f"📝 First contact — saving UUID: {msg.sender_uuid[:8]}...", flush=True)
-            self.user_uuid = msg.sender_uuid
-            self._save_user_uuid(msg.sender_uuid)
+        # First-time setup: no UUIDs known yet, accept first message
+        # This allows initial pairing without phone number in envelope
+        if not self.known_uuids and msg.sender_uuid:
+            # Use first configured phone as placeholder
+            first_phone = next(iter(self.user_phones), "unknown")
+            self.known_uuids[first_phone] = msg.sender_uuid
+            self._save_known_uuids()
+            print(f"📝 First contact — saved UUID: {msg.sender_uuid[:8]}...", flush=True)
             return True
         
         return False
@@ -265,7 +270,7 @@ class SignalTransport(Transport):
         print("Signal Transport")
         print("=" * 50)
         print(f"Bot phone: {self.bot_phone}")
-        print(f"User phone: {self.user_phone}")
+        print(f"Allowed phones: {', '.join(self.user_phones)}")
         print(f"Voice: {'✓' if self.whisper_model else '✗'}")
         print("=" * 50 + "\n")
         
@@ -275,25 +280,13 @@ class SignalTransport(Transport):
         self.rpc.subscribe()
         print("✓ signal-cli connected", flush=True)
         
-        # Lookup user UUID if not known
-        if not self.user_uuid:
-            print(f"🔍 Looking up UUID for {self.user_phone}...", flush=True)
-            uuid = self.rpc.get_user_id(self.user_phone)
-            if uuid:
-                self.user_uuid = uuid
-                self._save_user_uuid(uuid)
-                print(f"✓ Found and saved UUID: {uuid[:8]}...", flush=True)
-            else:
-                # Send greeting to establish contact — reply will include phone+UUID
-                print(f"📤 Sending greeting to {self.user_phone}...", flush=True)
-                bot_name = self.config.signal.bot_name or "Ou"
-                self.rpc.send_to_phone(
-                    self.user_phone,
-                    f"👋 {bot_name} ist bereit. Bitte antworte kurz, um die Verbindung zu bestätigen."
-                )
-                print("⏳ Waiting for reply to learn UUID...", flush=True)
+        # Show known UUIDs
+        if self.known_uuids:
+            print(f"✓ Known users: {len(self.known_uuids)}", flush=True)
+            for phone, uuid in self.known_uuids.items():
+                print(f"  • {phone}: {uuid[:8]}...", flush=True)
         else:
-            print(f"✓ User UUID: {self.user_uuid[:8]}...", flush=True)
+            print("⏳ No known UUIDs — first message will be accepted", flush=True)
         
         # Start watcher thread
         self._watching = True
