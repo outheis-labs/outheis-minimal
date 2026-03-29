@@ -470,41 +470,45 @@ def start_daemon(foreground: bool = False) -> bool:
     else:
         # Start as subprocess (avoids macOS fork issues with CoreFoundation)
         import subprocess
+        import shutil
         
-        # Get path to outheis command
-        outheis_cmd = sys.executable.replace("/python", "").replace("python", "outheis")
-        if not os.path.exists(outheis_cmd):
-            # Fallback: use python -m
-            outheis_cmd = None
+        # Find outheis command
+        outheis_cmd = shutil.which("outheis")
         
         # Build command
         if outheis_cmd:
             cmd = [outheis_cmd, "start", "-f"]
         else:
+            # Fallback: use python -m
             cmd = [sys.executable, "-m", "outheis.cli.main", "start", "-f"]
         
         # Copy environment, including any overrides
         env = os.environ.copy()
         
+        # Log file for daemon output
+        from outheis.core.config import get_human_dir
+        log_path = get_human_dir() / "dispatcher.log"
+        
         # Start detached subprocess
-        with open(os.devnull, 'w') as devnull:
+        with open(log_path, 'a') as log_file, open(os.devnull, 'r') as devnull:
             process = subprocess.Popen(
                 cmd,
-                stdout=devnull,
-                stderr=devnull,
+                stdout=log_file,
+                stderr=log_file,
                 stdin=devnull,
                 start_new_session=True,
                 env=env,
             )
         
         # Wait briefly and check if started
-        time.sleep(0.5)
+        time.sleep(1.0)
         child_pid = read_pid()
         if child_pid:
             print(f"Dispatcher started (PID {child_pid})")
+            print(f"Log: {log_path}")
             return True
         else:
-            print("Failed to start dispatcher")
+            print(f"Failed to start dispatcher. Check log: {log_path}")
             return False
 
 
