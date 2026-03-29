@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "outheis"
-version = "0.1.0"
+version = "0.2.0"
 description = "Multi-agent personal assistant"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
@@ -46,7 +46,7 @@ dev = [
     "mypy>=1.10",
 ]
 signal = [
-    # Signal transport dependencies (future)
+    "faster-whisper>=1.0.0",  # Voice transcription (optional, CPU-only)
 ]
 watch = [
     "watchdog>=4.0",
