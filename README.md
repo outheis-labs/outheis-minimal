@@ -1,56 +1,52 @@
 # οὐθείς (outheis)
 
-A multi-agent AI assistant built on proven operating system principles.
+*Nobody — and everybody who refuses to be captured.*
 
-The concept is conceived for both personal assistant (1:1) and domain expert mode (many:1).
+A multi-agent AI assistant built on proven operating system engineering principles.
+
+It's conceptionally conceived for both personal assistant (1:1) and domain expert (many:1) usage.
 
 ## The Problem
 
-Current AI agent frameworks often reinvent solutions that operating systems solved decades ago: coordinating independent processes, managing communication, handling failures gracefully. Most do this poorly, leading to brittle architectures.
+Every interaction with an AI system leaves traces. Queries reveal interests. Conversations expose thinking patterns. Over time, these traces form a profile — not for your benefit, but for extraction.
 
-## The Insight
+The term *captured cognition* describes this: your mental work, externalized through AI interaction, becomes raw material for systems that don't serve you.
 
-An operating system coordinates processes that must communicate without corrupting shared state, access resources without conflict, and fail gracefully. A multi-agent AI system has the same requirements.
+## Sovereignty
 
-Instead of reinventing, outheis applies proven concepts from OS research—message passing, ownership semantics, supervision—to agent coordination.
+outheis takes a different position: your cognitive infrastructure belongs to you.
 
-## Principles
+This means:
+- **Local first** — your data stays on your machine
+- **Transparent operation** — append-only logs, no hidden state
+- **Explicit capabilities** — agents declare what they can access
+- **Portable formats** — Markdown and JSON, no lock-in
 
-- **Message Passing**: Agents communicate via messages, not shared state
-- **Ownership**: Each agent owns its domain exclusively
-- **Append-Only Log**: The message queue is immutable and auditable
-- **Supervision**: Failed agents can be restarted without losing system state
-- **Specialization**: Each agent does one thing well
+## οὐθείς
+
+The name comes from Homer. When Polyphemus asks who blinded him, Odysseus answers: οὐθείς — *nobody*. The Cyclops calls for help: "Nobody is hurting me!" No help comes.
+
+It's a trick, but also a stance: by refusing to be named, captured, pinned down, Odysseus remains free to act.
+
+outheis carries this into AI interaction. The system knows you — but only locally, only under your control, only in service of your work.
+
+## Not Anti-AI
+
+This isn't a rejection of AI assistance. It's a rejection of the extractive model that currently dominates.
+
+AI can be genuinely helpful: finding connections in your notes, managing complexity, extending memory. But this help shouldn't come at the cost of surveillance.
+
+outheis explores what AI assistance looks like when sovereignty is non-negotiable.
 
 ## Documentation
 
 **[→ outheis-labs.github.io/outheis-minimal](https://outheis-labs.github.io/outheis-minimal/)**
 
-Design documents in [design/](design/):
-
-- [Why OS Principles Apply](design/01-why-os-principles.md)
-- [Systems Survey](design/02-systems-survey.md)
-- [Architecture](design/03-architecture.md)
-- [Data Formats](design/04-data-formats.md)
-- [Related Work](design/05-related-work.md)
-- [Agent Prompts](design/06-agent-prompts.md)
-
 ## Status
 
-Prototype working. Conceptual makeover. New implementation ongoing.
+Prototype working since November 2025. Conceptual makeover. New implementation nearly done.
 
 ## License
 
 AGPL-3.0
 
-## Acknowledgments
-
-outheis draws inspiration from:
-
-- [DragonFlyBSD](https://www.dragonflybsd.org/) — message passing architecture, LWKT, ownership semantics
-- [Erlang/OTP](https://www.erlang.org/) — actor model, supervision trees, "let it crash" philosophy
-- [OpenBSD](https://www.openbsd.org/) — pledge/unveil security model, privilege separation
-- [seL4](https://sel4.systems/) — capability-based access control
-- [Plan 9](https://9p.io/plan9/) — uniform resource interfaces
-- [Apple Grand Central Dispatch](https://apple.github.io/swift-corelibs-libdispatch/) — priority-aware scheduling
-- Event Sourcing pattern from the Domain-Driven Design community
