@@ -72,8 +72,12 @@ class SignalTransport(Transport):
             print("ℹ️  Whisper not available (install faster-whisper for voice)", flush=True)
     
     def _is_allowed(self, msg: SignalMessage) -> bool:
-        """Check if sender is allowed (single-user mode: only user.phone)."""
-        # Check UUID if we know it
+        """Check if sender is allowed (single-user mode: only user.phone/uuid)."""
+        # Check UUID from config
+        if self.config.user.uuid and msg.sender_uuid == self.config.user.uuid:
+            return True
+        
+        # Check learned UUID
         if self.user_uuid and msg.sender_uuid == self.user_uuid:
             return True
         
@@ -81,6 +85,7 @@ class SignalTransport(Transport):
         if msg.sender_phone and msg.sender_phone == self.user_phone:
             # Learn UUID for future
             self.user_uuid = msg.sender_uuid
+            print(f"📝 Learned user UUID: {msg.sender_uuid}", flush=True)
             return True
         
         return False
