@@ -424,11 +424,13 @@ def start_daemon(foreground: bool = False) -> bool:
 
     # Validate paths
     print("Validating paths...")
-    path_warnings = _validate_paths(config)
-    for warn in path_warnings:
-        print(f"  ⚠ {warn}")
-    if not path_warnings:
-        print("  ✓ Paths valid")
+    path_errors = _validate_paths(config)
+    if path_errors:
+        for err in path_errors:
+            print(f"  ✗ {err}")
+        print("\nDispatcher cannot start. Fix configuration and try again.")
+        return False
+    print("  ✓ Paths valid")
 
     # Validate API keys BEFORE forking
     print("Validating API keys...")
@@ -483,18 +485,21 @@ def _validate_paths(config: Config) -> list[str]:
     """
     Validate vault and agenda paths.
     
-    Returns list of warnings (not errors — dispatcher can still start).
+    Returns list of errors for enabled agents that require paths.
     """
-    warnings = []
+    errors = []
     
-    # Check vault paths
-    vaults = config.user.all_vaults()
-    if not vaults:
-        warnings.append("No vault configured")
-    else:
-        for vault in vaults:
-            if not vault.exists():
-                warnings.append(f"Vault not found: {vault}")
+    # Check vault paths if data agent is enabled
+    data_config = config.agents.get("data")
+    if data_config and data_config.enabled:
+        vaults = config.user.all_vaults()
+        if not vaults:
+            errors.append("Data agent enabled but no vault configured")
+        else:
+            missing_vaults = [v for v in vaults if not v.exists()]
+            if len(missing_vaults) == len(vaults):
+                # All vaults missing
+                errors.append(f"Data agent enabled but vault not found: {vaults[0]}")
     
     # Check Agenda directory if agenda agent is enabled
     agenda_config = config.agents.get("agenda")
@@ -502,14 +507,14 @@ def _validate_paths(config: Config) -> list[str]:
         primary_vault = config.user.primary_vault()
         agenda_dir = primary_vault / "Agenda"
         if not agenda_dir.exists():
-            warnings.append(f"Agenda directory not found: {agenda_dir}")
+            errors.append(f"Agenda agent enabled but directory not found: {agenda_dir}")
         else:
             # Check for required files
             for filename in ["Daily.md", "Inbox.md"]:
                 if not (agenda_dir / filename).exists():
-                    warnings.append(f"Agenda file missing: {agenda_dir / filename}")
+                    errors.append(f"Agenda file missing: {agenda_dir / filename}")
     
-    return warnings
+    return errors
 
 
 def _validate_api_keys(config: Config) -> list[str]:
