@@ -708,5 +708,171 @@ def rules(
     typer.echo()
 
 
+# =============================================================================
+# TASK COMMANDS
+# =============================================================================
+
+task_app = typer.Typer(help="Manage scheduled tasks")
+app.add_typer(task_app, name="task")
+
+
+def _get_cli_source() -> "TaskSource":
+    """Create TaskSource for CLI context."""
+    import os
+    import socket
+    from datetime import datetime
+    from outheis.agents.tasks.base import TaskSource
+    
+    return TaskSource(
+        timestamp=datetime.now(),
+        interface="cli",
+        user=os.environ.get("USER", "unknown"),
+        host=socket.gethostname(),
+    )
+
+
+@task_app.command("list")
+def task_list() -> None:
+    """List all registered tasks."""
+    from outheis.agents.tasks import get_registry
+    
+    registry = get_registry()
+    
+    if not registry.tasks:
+        typer.echo("No tasks registered.")
+        typer.echo("\nAdd a task with: outheis task add <instruction>")
+        return
+    
+    typer.echo(f"\n{'ID':<20} {'Name':<25} {'Schedule':<15} {'Next Run':<20}")
+    typer.echo("-" * 80)
+    
+    for task in registry.tasks.values():
+        next_run = task.next_run.strftime("%Y-%m-%d %H:%M") if task.next_run else "—"
+        status = "✓" if task.enabled else "✗"
+        typer.echo(f"{status} {task.id:<18} {task.name:<25} {task.schedule.value:<15} {next_run:<20}")
+    
+    typer.echo()
+
+
+@task_app.command("add")
+def task_add(
+    instruction: str = typer.Argument(..., help="What should the task do?"),
+    task_id: str = typer.Option(None, "--id", help="Task ID (auto-generated if not provided)"),
+    times: str = typer.Option("08:00,18:00", "--times", "-t", help="Execution times (comma-separated)"),
+) -> None:
+    """Add a new task from natural language instruction."""
+    from datetime import datetime
+    from outheis.agents.tasks import get_registry
+    from outheis.agents.tasks.news import create_sz_task
+    
+    # For now, only SZ headlines task is supported
+    # TODO: Parse instruction and create appropriate task type
+    
+    if "sz" in instruction.lower() or "süddeutsche" in instruction.lower() or "schlagzeilen" in instruction.lower():
+        # Create SZ headlines task
+        if not task_id:
+            task_id = f"sz-headlines-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        time_list = [t.strip() for t in times.split(",")]
+        source = _get_cli_source()
+        
+        task = create_sz_task(
+            task_id=task_id,
+            times=time_list,
+            source=source,
+            instruction=instruction,
+        )
+        
+        registry = get_registry()
+        registry.add(task)
+        
+        typer.echo(f"✓ Task '{task.name}' created")
+        typer.echo(f"  ID: {task.id}")
+        typer.echo(f"  Schedule: {task.schedule.value} at {', '.join(task.times)}")
+        typer.echo(f"  Next run: {task.next_run.strftime('%Y-%m-%d %H:%M') if task.next_run else '—'}")
+        typer.echo(f"  Directory: {task.get_task_dir()}")
+    else:
+        typer.echo("⚠ Currently only SZ headlines tasks are supported.")
+        typer.echo("  Try: outheis task add 'SZ Schlagzeilen 2x täglich'")
+        raise typer.Exit(1)
+
+
+@task_app.command("run")
+def task_run(
+    task_id: str = typer.Argument(..., help="Task ID to run"),
+) -> None:
+    """Run a task immediately."""
+    from outheis.agents.tasks import get_registry
+    
+    registry = get_registry()
+    task = registry.get(task_id)
+    
+    if not task:
+        typer.echo(f"✗ Task not found: {task_id}")
+        raise typer.Exit(1)
+    
+    typer.echo(f"Running '{task.name}'...")
+    
+    result = task.execute()
+    
+    if result.success:
+        typer.echo(f"✓ Success")
+        typer.echo("\nOutput:")
+        typer.echo(task.format_for_agenda(result))
+        
+        # Save to history
+        registry.mark_completed(task, result)
+    else:
+        typer.echo(f"✗ Failed: {result.error}")
+        raise typer.Exit(1)
+
+
+@task_app.command("remove")
+def task_remove(
+    task_id: str = typer.Argument(..., help="Task ID to remove"),
+    force: bool = typer.Option(False, "--force", "-f", help="Don't ask for confirmation"),
+) -> None:
+    """Remove a task."""
+    from outheis.agents.tasks import get_registry
+    
+    registry = get_registry()
+    task = registry.get(task_id)
+    
+    if not task:
+        typer.echo(f"✗ Task not found: {task_id}")
+        raise typer.Exit(1)
+    
+    if not force:
+        confirm = typer.confirm(f"Remove task '{task.name}'?")
+        if not confirm:
+            typer.echo("Cancelled.")
+            raise typer.Exit(0)
+    
+    registry.remove(task_id)
+    typer.echo(f"✓ Task '{task_id}' removed")
+
+
+@task_app.command("show")
+def task_show(
+    task_id: str = typer.Argument(..., help="Task ID to show"),
+) -> None:
+    """Show task details."""
+    from outheis.agents.tasks import get_registry
+    
+    registry = get_registry()
+    task = registry.get(task_id)
+    
+    if not task:
+        typer.echo(f"✗ Task not found: {task_id}")
+        raise typer.Exit(1)
+    
+    # Print directive.md content
+    directive_path = task.get_task_dir() / "directive.md"
+    if directive_path.exists():
+        typer.echo(directive_path.read_text())
+    else:
+        typer.echo(task.to_directive_md())
+
+
 if __name__ == "__main__":
     app()

@@ -13,7 +13,7 @@ from datetime import datetime
 import httpx
 from bs4 import BeautifulSoup
 
-from outheis.agents.tasks.base import Task, TaskResult, TaskSchedule
+from outheis.agents.tasks.base import Task, TaskResult, TaskSchedule, TaskSource
 
 
 @dataclass
@@ -110,16 +110,30 @@ class NewsHeadlinesTask(Task):
             lines.append(f"- {headline}")
         
         return "\n".join(lines) + "\n"
+    
+    def to_dict(self) -> dict:
+        """Serialize task including news-specific fields."""
+        data = super().to_dict()
+        data.update({
+            "source_url": self.source_url,
+            "source_name": self.source_name,
+            "max_headlines": self.max_headlines,
+        })
+        return data
 
 
 def create_sz_task(
-    task_id: str = "sz_headlines",
+    task_id: str = "sz-headlines",
     times: list[str] | None = None,
+    source: "TaskSource | None" = None,
+    instruction: str = "",
 ) -> NewsHeadlinesTask:
     """Create an SZ headlines task with default settings."""
     return NewsHeadlinesTask(
         id=task_id,
         name="SZ Schlagzeilen",
+        instruction=instruction or "2x täglich die wichtigsten Schlagzeilen der SZ",
+        source=source,
         schedule=TaskSchedule.TWICE_DAILY,
         times=times or ["08:00", "18:00"],
         source_url="https://www.sz.de",

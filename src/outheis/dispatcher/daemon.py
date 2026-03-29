@@ -296,14 +296,10 @@ class Dispatcher:
         if not due_tasks:
             return
         
-        agent = self.get_agent("action")
-        if not agent:
-            return
-        
         for task in due_tasks:
             try:
                 result = task.execute()
-                registry.mark_completed(task)
+                registry.mark_completed(task, result)
                 
                 if result.success and task.target_agent == "agenda":
                     # Send to agenda agent
