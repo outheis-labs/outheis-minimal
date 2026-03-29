@@ -147,6 +147,13 @@ class AgentConfig:
 
 
 @dataclass
+class UpdatesConfig:
+    """Memory migration and housekeeping settings."""
+    auto_migrate: bool = True
+    schedule: str = "04:00"
+
+
+@dataclass
 class Config:
     """Complete configuration."""
     user: UserConfig = field(default_factory=UserConfig)
@@ -159,8 +166,7 @@ class Config:
         "action": AgentConfig(name="hiro", model="capable", enabled=False),
         "pattern": AgentConfig(name="rumi", model="capable"),
     })
-    auto_migrate: bool = True
-    migrate_schedule: str = "04:00"
+    updates: UpdatesConfig = field(default_factory=UpdatesConfig)
 
 
 # =============================================================================
@@ -261,13 +267,19 @@ def load_config() -> Config:
             "pattern": AgentConfig(name="rumi", model="capable"),
         }
 
+    # Updates
+    updates_data = data.get("updates", {})
+    updates = UpdatesConfig(
+        auto_migrate=updates_data.get("auto_migrate", True),
+        schedule=updates_data.get("schedule", "04:00"),
+    )
+
     return Config(
         user=user,
         signal=signal,
         llm=llm,
         agents=agents,
-        auto_migrate=data.get("auto_migrate", True),
-        migrate_schedule=data.get("migrate_schedule", "04:00"),
+        updates=updates,
     )
 
 
@@ -310,8 +322,10 @@ def save_config(config: Config) -> None:
             }
             for role, a in config.agents.items()
         },
-        "auto_migrate": config.auto_migrate,
-        "migrate_schedule": config.migrate_schedule,
+        "updates": {
+            "auto_migrate": config.updates.auto_migrate,
+            "schedule": config.updates.schedule,
+        },
     }
 
     # User phone

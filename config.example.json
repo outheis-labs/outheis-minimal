@@ -68,6 +68,8 @@
       "enabled": true
     }
   },
-  "auto_migrate": true,
-  "migrate_schedule": "04:00"
+  "updates": {
+    "auto_migrate": true,
+    "schedule": "04:00"
+  }
 }
