@@ -267,6 +267,19 @@ class SignalTransport(Transport):
         self.rpc.subscribe()
         print("✓ signal-cli connected", flush=True)
         
+        # Lookup user UUID if not known
+        if not self.user_uuid:
+            print(f"🔍 Looking up UUID for {self.user_phone}...", flush=True)
+            uuid = self.rpc.get_user_id(self.user_phone)
+            if uuid:
+                self.user_uuid = uuid
+                self._save_user_uuid(uuid)
+                print(f"✓ Found and saved UUID: {uuid[:8]}...", flush=True)
+            else:
+                print("⚠️ Could not lookup UUID — first message must include phone", flush=True)
+        else:
+            print(f"✓ User UUID: {self.user_uuid[:8]}...", flush=True)
+        
         # Start watcher thread
         self._watching = True
         self._watcher_thread = threading.Thread(target=self._watch_responses, daemon=True)

@@ -163,6 +163,25 @@ class SignalRPC:
             "message": text,
         })
     
+    def get_user_id(self, phone: str) -> str | None:
+        """
+        Get UUID for a phone number.
+        
+        Args:
+            phone: Phone number (e.g. +4917664104484)
+        
+        Returns:
+            UUID string or None if not found
+        """
+        try:
+            response = self._send_request("getUserId", {"recipient": phone})
+            result = response.get("result")
+            if isinstance(result, dict):
+                return result.get("uuid")
+            return result
+        except Exception:
+            return None
+    
     def get_attachment(self, attachment_id: str) -> bytes | None:
         """Download attachment data."""
         try:
