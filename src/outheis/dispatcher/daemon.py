@@ -14,6 +14,7 @@ import os
 import select
 import signal
 import sys
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -179,6 +180,9 @@ class Dispatcher:
     # Pipe for wakeup signal
     _wakeup_read: int | None = None
     _wakeup_write: int | None = None
+    
+    # Signal transport thread
+    _signal_thread: threading.Thread | None = None
 
     def __post_init__(self):
         # Register signal handlers
@@ -352,6 +356,22 @@ class Dispatcher:
         lock_manager = LockManager()
         lock_manager.start()
         print(f"Lock manager listening on: {lock_manager.socket_path}")
+
+        # Start Signal transport if enabled
+        signal_transport = None
+        if self.config.signal.enabled:
+            try:
+                from outheis.transport.signal import SignalTransport
+                signal_transport = SignalTransport(self.config)
+                self._signal_thread = threading.Thread(
+                    target=signal_transport.run,
+                    daemon=True,
+                    name="signal-transport",
+                )
+                self._signal_thread.start()
+                print("Signal transport started")
+            except Exception as e:
+                print(f"Signal transport failed to start: {e}")
 
         # Set up file watcher
         watcher = QueueWatcher(

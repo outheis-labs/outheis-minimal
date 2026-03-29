@@ -241,7 +241,7 @@ def load_config() -> Config:
     else:
         phone_list = phone_raw or []
     
-    user = HumanConfig(
+    human = HumanConfig(
         name=human_data.get("name", "Human"),
         phone=phone_list,
         language=human_data.get("language", "en"),
@@ -298,7 +298,7 @@ def load_config() -> Config:
     )
 
     return Config(
-        user=user,
+        human=human,
         signal=signal,
         llm=llm,
         agents=agents,

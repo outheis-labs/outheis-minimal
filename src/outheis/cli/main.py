@@ -365,44 +365,6 @@ def stop() -> None:
 
 
 @app.command()
-def signal() -> None:
-    """Start Signal transport (requires dispatcher running)."""
-    from outheis.core.config import load_config
-    from outheis.dispatcher.daemon import daemon_status
-    from outheis.transport.signal import SignalTransport
-
-    # Check if daemon is running
-    status = daemon_status()
-    if not status["running"]:
-        typer.echo("Dispatcher not running. Start it with: outheis start")
-        raise typer.Exit(1)
-
-    # Load config and validate
-    config = load_config()
-    
-    if not config.signal.enabled:
-        typer.echo("Signal not enabled. Add to config.json:")
-        typer.echo('  "signal": { "enabled": true, "bot_phone": "+49..." }')
-        raise typer.Exit(1)
-    
-    if not config.signal.bot_phone:
-        typer.echo("signal.bot_phone not configured")
-        raise typer.Exit(1)
-    
-    if not config.human.phone:
-        typer.echo("user.phone not configured (needed for authorization)")
-        raise typer.Exit(1)
-
-    # Start transport
-    try:
-        transport = SignalTransport(config)
-        transport.run()
-    except Exception as e:
-        typer.echo(f"Error: {e}")
-        raise typer.Exit(1)
-
-
-@app.command()
 def send(
     message: str = typer.Argument(..., help="Message to send"),
     timeout: float = typer.Option(60.0, "--timeout", "-t", help="Response timeout in seconds"),
