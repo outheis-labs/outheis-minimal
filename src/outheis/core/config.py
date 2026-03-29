@@ -75,8 +75,8 @@ class UserConfig:
     timezone: str = "UTC"
     vault: list[str] = field(default_factory=lambda: ["~/Documents/Vault"])
 
-    # Optional fields
-    signal_phone: str | None = None
+    # User's phone (for single-user mode authorization)
+    phone: str | None = None
 
     def primary_vault(self) -> Path:
         """Get primary vault path. Respects OUTHEIS_VAULT env var."""
@@ -93,6 +93,13 @@ class UserConfig:
         if override:
             return [Path(os.path.expanduser(override))]
         return [Path(os.path.expanduser(v)) for v in self.vault]
+
+
+@dataclass
+class SignalConfig:
+    """Signal transport configuration."""
+    enabled: bool = False
+    bot_phone: str | None = None  # Bot's registered Signal number
 
 
 @dataclass
@@ -116,6 +123,7 @@ class AgentConfig:
 class Config:
     """Complete configuration."""
     user: UserConfig = field(default_factory=UserConfig)
+    signal: SignalConfig = field(default_factory=SignalConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     agents: dict[str, AgentConfig] = field(default_factory=dict)
 
@@ -139,6 +147,7 @@ def load_config() -> Config:
         data = json.load(f)
 
     user = UserConfig(**data.get("user", {})) if "user" in data else UserConfig()
+    signal = SignalConfig(**data.get("signal", {})) if "signal" in data else SignalConfig()
     routing = RoutingConfig(**data.get("routing", {})) if "routing" in data else RoutingConfig()
 
     agents = {}
@@ -147,6 +156,7 @@ def load_config() -> Config:
 
     return Config(
         user=user,
+        signal=signal,
         routing=routing,
         agents=agents,
         auto_migrate=data.get("auto_migrate", True),
@@ -184,8 +194,17 @@ def save_config(config: Config) -> None:
         "migrate_schedule": config.migrate_schedule,
     }
 
-    if config.user.signal_phone:
-        data["user"]["signal_phone"] = config.user.signal_phone
+    # User phone
+    if config.user.phone:
+        data["user"]["phone"] = config.user.phone
+
+    # Signal config
+    if config.signal.enabled or config.signal.bot_phone:
+        data["signal"] = {
+            "enabled": config.signal.enabled,
+        }
+        if config.signal.bot_phone:
+            data["signal"]["bot_phone"] = config.signal.bot_phone
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
