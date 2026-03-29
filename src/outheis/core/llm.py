@@ -1,36 +1,19 @@
 """
 LLM client abstraction.
 
-Provides a unified interface for different LLM providers:
+Supports multiple providers per config:
 - Anthropic (Claude)
 - Ollama (local models)
 - OpenAI (future)
 
 Config is loaded once at startup. Call init_llm() from dispatcher.
-
-Usage:
-    from outheis.core.llm import call_llm
-    
-    # Simple call
-    response = call_llm(
-        model="fast",  # or "capable", or explicit model name
-        messages=[{"role": "user", "content": "Hello"}],
-    )
-    
-    # With tools
-    response = call_llm(
-        model="capable",
-        system="You are helpful.",
-        messages=[...],
-        tools=[...],
-    )
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from outheis.core.config import LLMConfig
+from outheis.core.config import LLMConfig, ModelConfig, ProviderConfig
 
 
 # =============================================================================
@@ -38,16 +21,16 @@ from outheis.core.config import LLMConfig
 # =============================================================================
 
 _config: LLMConfig | None = None
-_client: Any = None
+_clients: dict[str, Any] = {}  # provider_name -> client
 
 
 def init_llm(config: LLMConfig) -> None:
     """
     Initialize LLM with config. Called once at dispatcher startup.
     """
-    global _config, _client
+    global _config, _clients
     _config = config
-    _client = None  # Will be created on first use
+    _clients = {}  # Reset clients
 
 
 def get_llm_config() -> LLMConfig:
@@ -63,51 +46,65 @@ def get_llm_config() -> LLMConfig:
     return _config
 
 
-def get_client() -> Any:
+def get_client(provider_name: str) -> Any:
     """
-    Get LLM client. Creates on first use, then reuses.
+    Get LLM client for a provider. Creates on first use, then reuses.
     """
-    global _client
+    global _clients
     
-    if _client is not None:
-        return _client
+    if provider_name in _clients:
+        return _clients[provider_name]
     
     config = get_llm_config()
+    provider = config.get_provider(provider_name)
     
-    if config.provider == "anthropic":
+    if provider_name == "anthropic":
         import anthropic
-        _client = anthropic.Anthropic()
+        kwargs = {}
+        if provider.api_key:
+            kwargs["api_key"] = provider.api_key
+        if provider.base_url:
+            kwargs["base_url"] = provider.base_url
+        _clients[provider_name] = anthropic.Anthropic(**kwargs)
     
-    elif config.provider == "ollama":
-        # Ollama uses OpenAI-compatible API
+    elif provider_name == "ollama":
         import anthropic
-        base_url = config.base_url or "http://localhost:11434/v1"
-        _client = anthropic.Anthropic(
+        base_url = provider.base_url or "http://localhost:11434/v1"
+        _clients[provider_name] = anthropic.Anthropic(
             base_url=base_url,
             api_key="ollama",  # Ollama doesn't need a real key
         )
     
-    elif config.provider == "openai":
-        raise NotImplementedError("OpenAI provider not yet implemented")
+    elif provider_name == "openai":
+        try:
+            import openai
+            kwargs = {}
+            if provider.api_key:
+                kwargs["api_key"] = provider.api_key
+            if provider.base_url:
+                kwargs["base_url"] = provider.base_url
+            _clients[provider_name] = openai.OpenAI(**kwargs)
+        except ImportError:
+            raise ImportError("openai package not installed")
     
     else:
-        raise ValueError(f"Unknown provider: {config.provider}")
+        raise ValueError(f"Unknown provider: {provider_name}")
     
-    return _client
+    return _clients[provider_name]
 
 
-def resolve_model(model: str) -> str:
+def resolve_model(alias: str) -> ModelConfig:
     """
-    Resolve model alias to actual model name.
+    Resolve model alias to ModelConfig.
     
     Args:
-        model: Model alias ("fast", "capable") or explicit model name
+        alias: Model alias ("fast", "capable") or explicit model name
     
     Returns:
-        Actual model name to use
+        ModelConfig with provider, name, run_mode
     """
     config = get_llm_config()
-    return config.get_model(model)
+    return config.get_model(alias)
 
 
 def call_llm(
@@ -130,11 +127,11 @@ def call_llm(
     Returns:
         API response object
     """
-    client = get_client()
-    actual_model = resolve_model(model)
+    model_config = resolve_model(model)
+    client = get_client(model_config.provider)
     
     kwargs: dict[str, Any] = {
-        "model": actual_model,
+        "model": model_config.name,
         "max_tokens": max_tokens,
         "messages": messages,
     }

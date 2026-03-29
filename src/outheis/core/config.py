@@ -2,7 +2,6 @@
 Configuration management.
 
 User config: ~/.outheis/human/config.json
-System config: ~/.outheis/config.json (future)
 
 Environment overrides:
   OUTHEIS_HUMAN_DIR — override human data directory
@@ -15,6 +14,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 # =============================================================================
 # PATHS
@@ -64,19 +64,17 @@ def get_archive_dir() -> Path:
 
 
 # =============================================================================
-# CONFIG DATACLASS
+# CONFIG DATACLASSES
 # =============================================================================
 
 @dataclass
 class UserConfig:
     """User configuration."""
     name: str = "User"
+    phone: str | None = None
     language: str = "en"
     timezone: str = "UTC"
     vault: list[str] = field(default_factory=lambda: ["~/Documents/Vault"])
-
-    # User's phone (for single-user mode authorization)
-    phone: str | None = None
 
     def primary_vault(self) -> Path:
         """Get primary vault path. Respects OUTHEIS_VAULT env var."""
@@ -99,40 +97,52 @@ class UserConfig:
 class SignalConfig:
     """Signal transport configuration."""
     enabled: bool = False
-    bot_phone: str | None = None  # Bot's registered Signal number
+    bot_phone: str | None = None
+
+
+@dataclass
+class ProviderConfig:
+    """Configuration for a single LLM provider."""
+    api_key: str | None = None
+    base_url: str | None = None
+
+
+@dataclass
+class ModelConfig:
+    """Configuration for a single model alias."""
+    provider: str  # "anthropic", "ollama", "openai"
+    name: str  # e.g. "claude-sonnet-4-20250514", "llama3.2:3b"
+    run_mode: str = "on-demand"  # "on-demand", "persistent"
 
 
 @dataclass
 class LLMConfig:
-    """LLM provider and model configuration."""
-    provider: str = "anthropic"  # "anthropic", "ollama", "openai"
-    base_url: str | None = None  # For ollama: "http://localhost:11434"
-    
-    # Model aliases — agents reference these, not hardcoded model names
-    models: dict[str, str] = field(default_factory=lambda: {
-        "fast": "claude-haiku-4-5",
-        "capable": "claude-sonnet-4-20250514",
+    """LLM providers and model aliases."""
+    providers: dict[str, ProviderConfig] = field(default_factory=lambda: {
+        "anthropic": ProviderConfig(),
     })
+    models: dict[str, ModelConfig] = field(default_factory=lambda: {
+        "fast": ModelConfig(provider="anthropic", name="claude-haiku-4-5"),
+        "capable": ModelConfig(provider="anthropic", name="claude-sonnet-4-20250514"),
+    })
+
+    def get_model(self, alias: str) -> ModelConfig:
+        """Get model config for alias. Raises KeyError if not found."""
+        if alias in self.models:
+            return self.models[alias]
+        # Allow direct model name as fallback
+        return ModelConfig(provider="anthropic", name=alias)
     
-    def get_model(self, alias: str) -> str:
-        """Get model name for alias. Falls back to alias if not found."""
-        return self.models.get(alias, alias)
-
-
-@dataclass
-class RoutingConfig:
-    """Dispatcher routing configuration."""
-    threshold: float = 0.3
-    data: list[str] = field(default_factory=lambda: ["vault", "search", "find", "note"])
-    agenda: list[str] = field(default_factory=lambda: ["appointment", "calendar", "tomorrow", "schedule"])
-    action: list[str] = field(default_factory=lambda: ["send", "email", "open", "execute"])
+    def get_provider(self, name: str) -> ProviderConfig:
+        """Get provider config. Returns empty config if not found."""
+        return self.providers.get(name, ProviderConfig())
 
 
 @dataclass
 class AgentConfig:
     """Configuration for a single agent."""
-    model: str = "capable"  # References LLMConfig.models alias
-    run_mode: str = "on-demand"  # "daemon", "on-demand", "scheduled"
+    name: str  # Display name (e.g. "ou", "zeno")
+    model: str = "capable"  # Model alias
     enabled: bool = True
 
 
@@ -142,10 +152,13 @@ class Config:
     user: UserConfig = field(default_factory=UserConfig)
     signal: SignalConfig = field(default_factory=SignalConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
-    routing: RoutingConfig = field(default_factory=RoutingConfig)
-    agents: dict[str, AgentConfig] = field(default_factory=dict)
-
-    # System settings
+    agents: dict[str, AgentConfig] = field(default_factory=lambda: {
+        "relay": AgentConfig(name="ou", model="fast"),
+        "data": AgentConfig(name="zeno", model="capable"),
+        "agenda": AgentConfig(name="cato", model="capable"),
+        "action": AgentConfig(name="hiro", model="capable", enabled=False),
+        "pattern": AgentConfig(name="rumi", model="capable"),
+    })
     auto_migrate: bool = True
     migrate_schedule: str = "04:00"
 
@@ -153,6 +166,46 @@ class Config:
 # =============================================================================
 # LOAD / SAVE
 # =============================================================================
+
+def _parse_providers(data: dict) -> dict[str, ProviderConfig]:
+    """Parse providers from config data."""
+    result = {}
+    for name, cfg in data.items():
+        if isinstance(cfg, dict):
+            result[name] = ProviderConfig(
+                api_key=cfg.get("api_key"),
+                base_url=cfg.get("base_url"),
+            )
+        else:
+            result[name] = ProviderConfig()
+    return result
+
+
+def _parse_models(data: dict) -> dict[str, ModelConfig]:
+    """Parse models from config data."""
+    result = {}
+    for alias, cfg in data.items():
+        if isinstance(cfg, dict):
+            result[alias] = ModelConfig(
+                provider=cfg.get("provider", "anthropic"),
+                name=cfg.get("name", alias),
+                run_mode=cfg.get("run_mode", "on-demand"),
+            )
+    return result
+
+
+def _parse_agents(data: dict) -> dict[str, AgentConfig]:
+    """Parse agents from config data."""
+    result = {}
+    for role, cfg in data.items():
+        if isinstance(cfg, dict):
+            result[role] = AgentConfig(
+                name=cfg.get("name", role),
+                model=cfg.get("model", "capable"),
+                enabled=cfg.get("enabled", True),
+            )
+    return result
+
 
 def load_config() -> Config:
     """Load configuration from file."""
@@ -164,20 +217,54 @@ def load_config() -> Config:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
-    user = UserConfig(**data.get("user", {})) if "user" in data else UserConfig()
-    signal = SignalConfig(**data.get("signal", {})) if "signal" in data else SignalConfig()
-    llm = LLMConfig(**data.get("llm", {})) if "llm" in data else LLMConfig()
-    routing = RoutingConfig(**data.get("routing", {})) if "routing" in data else RoutingConfig()
+    # User
+    user_data = data.get("user", {})
+    user = UserConfig(
+        name=user_data.get("name", "User"),
+        phone=user_data.get("phone"),
+        language=user_data.get("language", "en"),
+        timezone=user_data.get("timezone", "UTC"),
+        vault=user_data.get("vault", ["~/Documents/Vault"]),
+    )
 
-    agents = {}
-    for name, cfg in data.get("agents", {}).items():
-        agents[name] = AgentConfig(**cfg)
+    # Signal
+    signal_data = data.get("signal", {})
+    signal = SignalConfig(
+        enabled=signal_data.get("enabled", False),
+        bot_phone=signal_data.get("bot_phone"),
+    )
+
+    # LLM
+    llm_data = data.get("llm", {})
+    llm = LLMConfig(
+        providers=_parse_providers(llm_data.get("providers", {})),
+        models=_parse_models(llm_data.get("models", {})),
+    )
+    # Use defaults if empty
+    if not llm.providers:
+        llm.providers = {"anthropic": ProviderConfig()}
+    if not llm.models:
+        llm.models = {
+            "fast": ModelConfig(provider="anthropic", name="claude-haiku-4-5"),
+            "capable": ModelConfig(provider="anthropic", name="claude-sonnet-4-20250514"),
+        }
+
+    # Agents
+    agents = _parse_agents(data.get("agents", {}))
+    # Use defaults if empty
+    if not agents:
+        agents = {
+            "relay": AgentConfig(name="ou", model="fast"),
+            "data": AgentConfig(name="zeno", model="capable"),
+            "agenda": AgentConfig(name="cato", model="capable"),
+            "action": AgentConfig(name="hiro", model="capable", enabled=False),
+            "pattern": AgentConfig(name="rumi", model="capable"),
+        }
 
     return Config(
         user=user,
         signal=signal,
         llm=llm,
-        routing=routing,
         agents=agents,
         auto_migrate=data.get("auto_migrate", True),
         migrate_schedule=data.get("migrate_schedule", "04:00"),
@@ -189,7 +276,7 @@ def save_config(config: Config) -> None:
     path = get_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    data = {
+    data: dict[str, Any] = {
         "user": {
             "name": config.user.name,
             "language": config.user.language,
@@ -197,16 +284,31 @@ def save_config(config: Config) -> None:
             "vault": config.user.vault,
         },
         "llm": {
-            "provider": config.llm.provider,
-            "models": config.llm.models,
+            "providers": {
+                name: {
+                    k: v for k, v in [
+                        ("api_key", p.api_key),
+                        ("base_url", p.base_url),
+                    ] if v is not None
+                }
+                for name, p in config.llm.providers.items()
+            },
+            "models": {
+                alias: {
+                    "provider": m.provider,
+                    "name": m.name,
+                    "run_mode": m.run_mode,
+                }
+                for alias, m in config.llm.models.items()
+            },
         },
         "agents": {
-            name: {
-                "model": cfg.model,
-                "run_mode": cfg.run_mode,
-                "enabled": cfg.enabled,
+            role: {
+                "name": a.name,
+                "model": a.model,
+                "enabled": a.enabled,
             }
-            for name, cfg in config.agents.items()
+            for role, a in config.agents.items()
         },
         "auto_migrate": config.auto_migrate,
         "migrate_schedule": config.migrate_schedule,
@@ -216,15 +318,9 @@ def save_config(config: Config) -> None:
     if config.user.phone:
         data["user"]["phone"] = config.user.phone
 
-    # LLM base_url (for ollama)
-    if config.llm.base_url:
-        data["llm"]["base_url"] = config.llm.base_url
-
     # Signal config
     if config.signal.enabled or config.signal.bot_phone:
-        data["signal"] = {
-            "enabled": config.signal.enabled,
-        }
+        data["signal"] = {"enabled": config.signal.enabled}
         if config.signal.bot_phone:
             data["signal"]["bot_phone"] = config.signal.bot_phone
 

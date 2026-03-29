@@ -276,7 +276,7 @@ class Dispatcher:
             return
 
         # Route to appropriate agent
-        target = get_dispatch_target(msg, self.config.routing)
+        target = get_dispatch_target(msg)
 
         # Get agent and handle
         agent = self.get_agent(target)
