@@ -29,17 +29,8 @@ class RelayAgent(BaseAgent):
     """
 
     name: str = "relay"
-    _client: any = field(default=None, repr=False)
     _data_agent: any = field(default=None, repr=False)
     _agenda_agent: any = field(default=None, repr=False)
-
-    @property
-    def client(self):
-        """Lazy load Anthropic client."""
-        if self._client is None:
-            import anthropic
-            self._client = anthropic.Anthropic()
-        return self._client
 
     def get_system_prompt(self) -> str:
         from outheis.agents.loader import load_rules
@@ -205,13 +196,15 @@ class RelayAgent(BaseAgent):
                 messages.append({"role": "assistant", "content": msg.payload.get("text", "")})
         messages.append({"role": "user", "content": text})
         
-        # First call with Haiku - fast tool decision
-        response = self.client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=1024,
+        # First call - fast tool decision
+        from outheis.core.llm import call_llm
+        
+        response = call_llm(
+            model="fast",
             system=self.get_system_prompt(),
             messages=messages,
             tools=tools,
+            max_tokens=1024,
         )
         
         # Check if tool use is needed
@@ -247,16 +240,16 @@ class RelayAgent(BaseAgent):
                         "content": result,
                     })
             
-            # Second call with tool results - Haiku for speed
+            # Second call with tool results
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
             
-            final_response = self.client.messages.create(
-                model="claude-haiku-4-5",
-                max_tokens=1024,
+            final_response = call_llm(
+                model="fast",
                 system=self.get_system_prompt(),
                 messages=messages,
                 tools=tools,
+                max_tokens=1024,
             )
             
             # Extract text from response

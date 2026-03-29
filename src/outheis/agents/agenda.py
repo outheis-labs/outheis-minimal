@@ -11,8 +11,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, date
 from pathlib import Path
 
-from anthropic import Anthropic
-
 from outheis.agents.base import BaseAgent
 from outheis.core.config import load_config
 from outheis.core.message import Message
@@ -82,13 +80,6 @@ class AgendaAgent(BaseAgent):
     """
 
     name: str = "agenda"
-    _client: Anthropic | None = field(default=None, repr=False)
-
-    @property
-    def client(self) -> Anthropic:
-        if self._client is None:
-            self._client = Anthropic()
-        return self._client
 
     def get_system_prompt(self) -> str:
         from outheis.agents.loader import load_rules
@@ -145,11 +136,13 @@ User query: {query}
 
 Respond helpfully based on the agenda information. If the user wants to modify the schedule, describe what changes you would make. Be concise. Match the language of the user's query."""
 
-        response = self.client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1000,
+        from outheis.core.llm import call_llm
+        
+        response = call_llm(
+            model="capable",
             system=self.get_system_prompt(),
             messages=[{"role": "user", "content": user_prompt}],
+            max_tokens=1000,
         )
         
         return response.content[0].text

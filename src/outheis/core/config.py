@@ -103,6 +103,23 @@ class SignalConfig:
 
 
 @dataclass
+class LLMConfig:
+    """LLM provider and model configuration."""
+    provider: str = "anthropic"  # "anthropic", "ollama", "openai"
+    base_url: str | None = None  # For ollama: "http://localhost:11434"
+    
+    # Model aliases — agents reference these, not hardcoded model names
+    models: dict[str, str] = field(default_factory=lambda: {
+        "fast": "claude-haiku-4-5",
+        "capable": "claude-sonnet-4-20250514",
+    })
+    
+    def get_model(self, alias: str) -> str:
+        """Get model name for alias. Falls back to alias if not found."""
+        return self.models.get(alias, alias)
+
+
+@dataclass
 class RoutingConfig:
     """Dispatcher routing configuration."""
     threshold: float = 0.3
@@ -114,7 +131,7 @@ class RoutingConfig:
 @dataclass
 class AgentConfig:
     """Configuration for a single agent."""
-    model: str = "capable"
+    model: str = "capable"  # References LLMConfig.models alias
     run_mode: str = "on-demand"  # "daemon", "on-demand", "scheduled"
     enabled: bool = True
 
@@ -124,6 +141,7 @@ class Config:
     """Complete configuration."""
     user: UserConfig = field(default_factory=UserConfig)
     signal: SignalConfig = field(default_factory=SignalConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     agents: dict[str, AgentConfig] = field(default_factory=dict)
 
@@ -148,6 +166,7 @@ def load_config() -> Config:
 
     user = UserConfig(**data.get("user", {})) if "user" in data else UserConfig()
     signal = SignalConfig(**data.get("signal", {})) if "signal" in data else SignalConfig()
+    llm = LLMConfig(**data.get("llm", {})) if "llm" in data else LLMConfig()
     routing = RoutingConfig(**data.get("routing", {})) if "routing" in data else RoutingConfig()
 
     agents = {}
@@ -157,6 +176,7 @@ def load_config() -> Config:
     return Config(
         user=user,
         signal=signal,
+        llm=llm,
         routing=routing,
         agents=agents,
         auto_migrate=data.get("auto_migrate", True),
@@ -176,11 +196,9 @@ def save_config(config: Config) -> None:
             "timezone": config.user.timezone,
             "vault": config.user.vault,
         },
-        "routing": {
-            "threshold": config.routing.threshold,
-            "data": config.routing.data,
-            "agenda": config.routing.agenda,
-            "action": config.routing.action,
+        "llm": {
+            "provider": config.llm.provider,
+            "models": config.llm.models,
         },
         "agents": {
             name: {
@@ -197,6 +215,10 @@ def save_config(config: Config) -> None:
     # User phone
     if config.user.phone:
         data["user"]["phone"] = config.user.phone
+
+    # LLM base_url (for ollama)
+    if config.llm.base_url:
+        data["llm"]["base_url"] = config.llm.base_url
 
     # Signal config
     if config.signal.enabled or config.signal.bot_phone:

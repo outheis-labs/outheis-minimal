@@ -10,8 +10,6 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from anthropic import Anthropic
-
 from outheis.agents.base import BaseAgent
 from outheis.core.config import load_config
 from outheis.core.index import SearchIndex, create_index
@@ -32,7 +30,6 @@ class DataAgent(BaseAgent):
     """
     
     name: str = "data"
-    _client: Anthropic | None = field(default=None, repr=False)
     _indices: dict[str, SearchIndex] = field(default_factory=dict, repr=False)
     
     def get_system_prompt(self) -> str:
@@ -51,12 +48,6 @@ class DataAgent(BaseAgent):
         prompt_parts.append(f"\nDefault language: {config.user.language}")
         
         return "\n\n".join(prompt_parts)
-    
-    @property
-    def client(self) -> Anthropic:
-        if self._client is None:
-            self._client = Anthropic()
-        return self._client
     
     def _get_indices(self) -> list[SearchIndex]:
         """Get or create search indices for all vaults."""
@@ -158,11 +149,13 @@ USER QUERY:
 Based on the vault contents above, answer the user's query. If the information isn't in the vault, say so clearly. Match the language of the user's query."""
 
         try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=1024,
+            from outheis.core.llm import call_llm
+            
+            response = call_llm(
+                model="capable",
                 system=self.get_system_prompt(),
                 messages=[{"role": "user", "content": user_content}],
+                max_tokens=1024,
             )
             
             answer = response.content[0].text
@@ -204,11 +197,13 @@ USER QUERY:
 Based on the vault search results above, answer the user's query. If nothing relevant was found, say so clearly. Match the language of the user's query."""
 
         try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=1024,
+            from outheis.core.llm import call_llm
+            
+            response = call_llm(
+                model="capable",
                 system=self.get_system_prompt(),
                 messages=[{"role": "user", "content": user_content}],
+                max_tokens=1024,
             )
             return response.content[0].text
         except Exception as e:

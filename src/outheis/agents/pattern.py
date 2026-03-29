@@ -12,8 +12,6 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from anthropic import Anthropic
-
 from outheis.agents.base import BaseAgent
 from outheis.core.message import Message
 from outheis.core.memory import get_memory_store, MemoryType
@@ -87,14 +85,7 @@ class PatternAgent(BaseAgent):
     """
 
     name: str = "pattern"
-    _client: Anthropic | None = field(default=None, repr=False)
     
-    @property
-    def client(self) -> Anthropic:
-        if self._client is None:
-            self._client = Anthropic()
-        return self._client
-
     def get_system_prompt(self) -> str:
         from outheis.agents.loader import load_rules
         return load_rules("pattern")
@@ -210,11 +201,13 @@ Recent conversation:
 Extract any NEW information worth remembering. Respond in JSON only."""
         
         try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=1000,
+            from outheis.core.llm import call_llm
+            
+            response = call_llm(
+                model="capable",
                 system=self.get_extraction_prompt(),
                 messages=[{"role": "user", "content": user_prompt}],
+                max_tokens=1000,
             )
             
             # Parse JSON response
