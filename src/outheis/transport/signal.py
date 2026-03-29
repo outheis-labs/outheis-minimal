@@ -276,7 +276,14 @@ class SignalTransport(Transport):
                 self._save_user_uuid(uuid)
                 print(f"✓ Found and saved UUID: {uuid[:8]}...", flush=True)
             else:
-                print("⚠️ Could not lookup UUID — first message must include phone", flush=True)
+                # Send greeting to establish contact — reply will include phone+UUID
+                print(f"📤 Sending greeting to {self.user_phone}...", flush=True)
+                bot_name = self.config.signal.bot_name or "Ou"
+                self.rpc.send_to_phone(
+                    self.user_phone,
+                    f"👋 {bot_name} ist bereit. Bitte antworte kurz, um die Verbindung zu bestätigen."
+                )
+                print("⏳ Waiting for reply to learn UUID...", flush=True)
         else:
             print(f"✓ User UUID: {self.user_uuid[:8]}...", flush=True)
         

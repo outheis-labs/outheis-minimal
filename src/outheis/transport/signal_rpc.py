@@ -152,14 +152,27 @@ class SignalRPC:
     
     def send_message(self, recipient_uuid: str, text: str) -> None:
         """
-        Send message to a recipient.
+        Send message to a recipient by UUID.
         
         Args:
-            recipient_uuid: Recipient's UUID (not phone number!)
+            recipient_uuid: Recipient's UUID
             text: Message text
         """
         self._send_request("send", {
             "recipient": [recipient_uuid],
+            "message": text,
+        })
+    
+    def send_to_phone(self, phone: str, text: str) -> None:
+        """
+        Send message to a recipient by phone number.
+        
+        Args:
+            phone: Recipient's phone number (e.g. +4917664104484)
+            text: Message text
+        """
+        self._send_request("send", {
+            "recipient": [phone],
             "message": text,
         })
     
