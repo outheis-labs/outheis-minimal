@@ -34,12 +34,276 @@ def main(
 
 @app.command()
 def init() -> None:
-    """Initialize outheis directories and config."""
-    from outheis.core.config import get_config_path, init_directories
-
+    """Interactive setup wizard for outheis."""
+    import os
+    import shutil
+    import subprocess
+    
+    from outheis.core.config import (
+        Config,
+        HumanConfig,
+        SignalConfig,
+        AllowedContact,
+        LLMConfig,
+        ProviderConfig,
+        ModelConfig,
+        AgentConfig,
+        UpdatesConfig,
+        get_config_path,
+        get_human_dir,
+        load_config,
+        save_config,
+        init_directories,
+    )
+    
+    typer.echo("\n" + "=" * 50)
+    typer.echo("Welcome to outheis!")
+    typer.echo("=" * 50)
+    typer.echo("\nThis wizard will guide you through the setup.")
+    typer.echo("Press Enter to keep existing values shown in [brackets].\n")
+    typer.echo("Configure via web instead: http://localhost:8080/setup")
+    typer.echo("(Web interface coming in a future release)\n")
+    
+    # Load existing config or create new
     init_directories()
-    typer.echo("Initialized outheis at ~/.outheis")
-    typer.echo(f"Config: {get_config_path()}")
+    try:
+        config = load_config()
+    except Exception:
+        config = Config()
+    
+    # === HUMAN SECTION ===
+    typer.echo("─" * 50)
+    typer.echo("Human (Administrator)")
+    typer.echo("─" * 50 + "\n")
+    
+    # Name
+    default_name = config.human.name or "Human"
+    name = typer.prompt("Your name", default=default_name)
+    
+    # Language
+    default_lang = config.human.language or "en"
+    language = typer.prompt("Language (en/de)", default=default_lang)
+    
+    # Timezone
+    default_tz = config.human.timezone or "Europe/Berlin"
+    timezone = typer.prompt("Timezone", default=default_tz)
+    
+    # Phone(s)
+    default_phones = ", ".join(config.human.phone) if config.human.phone else ""
+    phones_str = typer.prompt("Your phone number(s), comma-separated", default=default_phones or "")
+    phones = [p.strip() for p in phones_str.split(",") if p.strip()]
+    
+    # Vault
+    default_vault = config.human.vault[0] if config.human.vault else "~/Documents/Vault"
+    vault_path = typer.prompt("Vault path", default=default_vault)
+    
+    # Update human config
+    config.human = HumanConfig(
+        name=name,
+        phone=phones,
+        language=language,
+        timezone=timezone,
+        vault=[vault_path],
+    )
+    
+    # === LLM SECTION ===
+    typer.echo("\n" + "─" * 50)
+    typer.echo("LLM Configuration")
+    typer.echo("─" * 50 + "\n")
+    typer.echo("outheis uses Anthropic Claude by default.")
+    typer.echo("You can switch to local models (Ollama) later.\n")
+    
+    # API Key
+    existing_key = config.llm.providers.get("anthropic", ProviderConfig()).api_key
+    if existing_key:
+        masked = f"{existing_key[:10]}...{existing_key[-4:]}"
+    else:
+        masked = ""
+    
+    api_key_input = typer.prompt(
+        "Anthropic API key",
+        default=masked or "",
+        hide_input=False,
+    )
+    
+    # If user entered something new (not the masked version), use it
+    if api_key_input and api_key_input != masked:
+        api_key = api_key_input
+    else:
+        api_key = existing_key
+    
+    # Validate API key
+    if api_key:
+        typer.echo("Validating API key...", nl=False)
+        if _validate_anthropic_key(api_key):
+            typer.echo(" ✓")
+        else:
+            typer.echo(" ✗ invalid")
+            if not typer.confirm("Continue anyway?"):
+                raise typer.Exit(1)
+    
+    # Update LLM config
+    config.llm.providers["anthropic"] = ProviderConfig(api_key=api_key)
+    
+    # === SIGNAL SECTION ===
+    typer.echo("\n" + "─" * 50)
+    typer.echo("Signal Messenger (optional)")
+    typer.echo("─" * 50 + "\n")
+    
+    # Check if signal-cli is installed
+    signal_cli_path = shutil.which("signal-cli")
+    if signal_cli_path:
+        typer.echo(f"✓ signal-cli found: {signal_cli_path}\n")
+        
+        default_enabled = "y" if config.signal.enabled else "n"
+        enable_signal = typer.confirm("Enable Signal?", default=config.signal.enabled)
+        
+        if enable_signal:
+            # Bot phone
+            default_bot_phone = config.signal.bot_phone or ""
+            bot_phone = typer.prompt("Bot phone number", default=default_bot_phone)
+            
+            # Check registration
+            if bot_phone:
+                typer.echo(f"Checking registration for {bot_phone}...", nl=False)
+                registered = _check_signal_registration(bot_phone)
+                
+                if registered:
+                    typer.echo(" ✓ registered")
+                else:
+                    typer.echo(" ✗ not registered")
+                    if typer.confirm("Register now?"):
+                        _register_signal(bot_phone)
+            
+            # Bot name
+            default_bot_name = config.signal.bot_name or "Ou"
+            bot_name = typer.prompt("Bot display name", default=default_bot_name)
+            
+            config.signal = SignalConfig(
+                enabled=True,
+                bot_phone=bot_phone,
+                bot_name=bot_name,
+                allowed=config.signal.allowed,  # Keep existing whitelist
+            )
+        else:
+            config.signal.enabled = False
+    else:
+        typer.echo("ℹ signal-cli not found — skipping Signal setup")
+        typer.echo("  Install: brew install signal-cli (macOS)")
+        typer.echo("           or see https://github.com/AsamK/signal-cli\n")
+    
+    # === SAVE CONFIG ===
+    save_config(config)
+    typer.echo("\n" + "─" * 50)
+    typer.echo("Setup complete!")
+    typer.echo("─" * 50 + "\n")
+    typer.echo(f"✓ Config saved to {get_config_path()}")
+    
+    # Create Agenda files if vault exists
+    vault_expanded = os.path.expanduser(vault_path)
+    agenda_dir = os.path.join(vault_expanded, "Agenda")
+    
+    if os.path.exists(vault_expanded):
+        os.makedirs(agenda_dir, exist_ok=True)
+        
+        daily_path = os.path.join(agenda_dir, "Daily.md")
+        if not os.path.exists(daily_path):
+            with open(daily_path, "w") as f:
+                f.write("# Daily\n\n## Today\n\n## Tomorrow\n")
+            typer.echo(f"✓ Created {daily_path}")
+        else:
+            typer.echo(f"⏭ {daily_path} exists, skipping")
+        
+        inbox_path = os.path.join(agenda_dir, "Inbox.md")
+        if not os.path.exists(inbox_path):
+            with open(inbox_path, "w") as f:
+                f.write("# Inbox\n\n")
+            typer.echo(f"✓ Created {inbox_path}")
+        else:
+            typer.echo(f"⏭ {inbox_path} exists, skipping")
+    else:
+        typer.echo(f"⚠ Vault {vault_expanded} does not exist — create it manually")
+    
+    typer.echo(f"\nRun 'outheis start' to begin.\n")
+
+
+def _validate_anthropic_key(api_key: str) -> bool:
+    """Validate Anthropic API key with a minimal request."""
+    if not api_key or not api_key.startswith("sk-ant-"):
+        return False
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1,
+            messages=[{"role": "user", "content": "hi"}],
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _check_signal_registration(phone: str) -> bool:
+    """Check if a phone number is registered with signal-cli."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["signal-cli", "-a", phone, "listAccounts"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return phone in result.stdout
+    except Exception:
+        return False
+
+
+def _register_signal(phone: str) -> bool:
+    """Register a phone number with signal-cli."""
+    import subprocess
+    
+    typer.echo(f"\nRegistering {phone} with Signal...")
+    typer.echo("Signal will send an SMS with a verification code.\n")
+    
+    use_voice = typer.confirm("Use voice call instead of SMS?", default=False)
+    
+    try:
+        # Request verification
+        cmd = ["signal-cli", "-a", phone, "register"]
+        if use_voice:
+            cmd.append("--voice")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode != 0:
+            typer.echo(f"Error: {result.stderr}")
+            return False
+        
+        # Get code from user
+        code = typer.prompt("Enter verification code")
+        
+        # Verify
+        result = subprocess.run(
+            ["signal-cli", "-a", phone, "verify", code],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        
+        if result.returncode == 0:
+            typer.echo("✓ Registration successful!")
+            return True
+        else:
+            typer.echo(f"Error: {result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        typer.echo("Timeout — try again later")
+        return False
+    except Exception as e:
+        typer.echo(f"Error: {e}")
+        return False
 
 
 @app.command()
