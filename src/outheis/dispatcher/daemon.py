@@ -468,37 +468,44 @@ def start_daemon(foreground: bool = False) -> bool:
         dispatcher.run()
         return True
     else:
-        # Fork to background
-        pid = os.fork()
-        if pid > 0:
-            # Parent process
-            time.sleep(0.5)  # Wait for child to start
-            child_pid = read_pid()
-            if child_pid:
-                print(f"Dispatcher started (PID {child_pid})")
-                return True
-            else:
-                print("Failed to start dispatcher")
-                return False
+        # Start as subprocess (avoids macOS fork issues with CoreFoundation)
+        import subprocess
+        
+        # Get path to outheis command
+        outheis_cmd = sys.executable.replace("/python", "").replace("python", "outheis")
+        if not os.path.exists(outheis_cmd):
+            # Fallback: use python -m
+            outheis_cmd = None
+        
+        # Build command
+        if outheis_cmd:
+            cmd = [outheis_cmd, "start", "-f"]
         else:
-            # Child process
-            # Detach from terminal
-            os.setsid()
-
-            # Close standard file descriptors
-            sys.stdin.close()
-            sys.stdout.close()
-            sys.stderr.close()
-
-            # Redirect to /dev/null
-            sys.stdin = open(os.devnull)
-            sys.stdout = open(os.devnull, 'w')
-            sys.stderr = open(os.devnull, 'w')
-
-            # Run dispatcher (validation already done)
-            dispatcher = Dispatcher()
-            dispatcher.run()
-            sys.exit(0)
+            cmd = [sys.executable, "-m", "outheis.cli.main", "start", "-f"]
+        
+        # Copy environment, including any overrides
+        env = os.environ.copy()
+        
+        # Start detached subprocess
+        with open(os.devnull, 'w') as devnull:
+            process = subprocess.Popen(
+                cmd,
+                stdout=devnull,
+                stderr=devnull,
+                stdin=devnull,
+                start_new_session=True,
+                env=env,
+            )
+        
+        # Wait briefly and check if started
+        time.sleep(0.5)
+        child_pid = read_pid()
+        if child_pid:
+            print(f"Dispatcher started (PID {child_pid})")
+            return True
+        else:
+            print("Failed to start dispatcher")
+            return False
 
 
 def _validate_paths(config: Config) -> list[str]:
