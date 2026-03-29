@@ -125,7 +125,7 @@ def signal() -> None:
         typer.echo("signal.bot_phone not configured")
         raise typer.Exit(1)
     
-    if not config.user.phone:
+    if not config.human.phone:
         typer.echo("user.phone not configured (needed for authorization)")
         raise typer.Exit(1)
 
@@ -270,10 +270,10 @@ def status() -> None:
         typer.echo("Dispatcher: stopped")
 
     typer.echo()
-    typer.echo(f"User: {config.user.name}")
-    typer.echo(f"Language: {config.user.language}")
-    typer.echo(f"Timezone: {config.user.timezone}")
-    typer.echo(f"Primary vault: {config.user.primary_vault()}")
+    typer.echo(f"User: {config.human.name}")
+    typer.echo(f"Language: {config.human.language}")
+    typer.echo(f"Timezone: {config.human.timezone}")
+    typer.echo(f"Primary vault: {config.human.primary_vault()}")
     typer.echo()
     typer.echo(f"Messages: {message_count(queue_path)}")
     typer.echo(f"Queue size: {queue_size(queue_path)} bytes")

@@ -45,14 +45,14 @@ class DataAgent(BaseAgent):
         if memory_context:
             prompt_parts.append(memory_context)
         
-        prompt_parts.append(f"\nDefault language: {config.user.language}")
+        prompt_parts.append(f"\nDefault language: {config.human.language}")
         
         return "\n\n".join(prompt_parts)
     
     def _get_indices(self) -> list[SearchIndex]:
         """Get or create search indices for all vaults."""
         config = load_config()
-        vaults = config.user.all_vaults()
+        vaults = config.human.all_vaults()
         
         indices = []
         for vault_path in vaults:

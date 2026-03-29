@@ -39,11 +39,17 @@ class SignalTransport(Transport):
         # Validate config
         if not config.signal or not config.signal.bot_phone:
             raise ValueError("signal.bot_phone not configured")
-        if not config.user.phone:
-            raise ValueError("user.phone not configured")
+        if not config.human.phone:
+            raise ValueError("human.phone not configured")
         
         self.bot_phone = config.signal.bot_phone
-        self.user_phones: set[str] = set(config.user.phone)  # All allowed phones
+        
+        # Build allowed phones: human phones + signal.allowed
+        self.allowed_phones: dict[str, str] = {}  # phone -> name
+        for phone in config.human.phone:
+            self.allowed_phones[phone] = config.human.name
+        for contact in config.signal.allowed:
+            self.allowed_phones[contact.phone] = contact.name
         
         # Load learned UUIDs from persistent storage
         self.known_uuids: dict[str, str] = self._load_known_uuids()  # phone -> uuid
@@ -105,23 +111,24 @@ class SignalTransport(Transport):
             print("ℹ️  Whisper not available (install faster-whisper for voice)", flush=True)
     
     def _is_allowed(self, msg: SignalMessage) -> bool:
-        """Check if sender is allowed (user.phone list)."""
+        """Check if sender is allowed (human.phone + signal.allowed)."""
         # Check if UUID is in known mappings
         if msg.sender_uuid in self.known_uuids.values():
             return True
         
         # Check phone number — learn and save UUID
-        if msg.sender_phone and msg.sender_phone in self.user_phones:
+        if msg.sender_phone and msg.sender_phone in self.allowed_phones:
             self.known_uuids[msg.sender_phone] = msg.sender_uuid
             self._save_known_uuids()
-            print(f"📝 Learned UUID for {msg.sender_phone}: {msg.sender_uuid[:8]}...", flush=True)
+            name = self.allowed_phones[msg.sender_phone]
+            print(f"📝 Learned UUID for {name} ({msg.sender_phone}): {msg.sender_uuid[:8]}...", flush=True)
             return True
         
         # First-time setup: no UUIDs known yet, accept first message
-        # This allows initial pairing without phone number in envelope
+        # Only if it could be the human (we don't know which phone they're using)
         if not self.known_uuids and msg.sender_uuid:
             # Use first configured phone as placeholder
-            first_phone = next(iter(self.user_phones), "unknown")
+            first_phone = next(iter(self.allowed_phones.keys()), "unknown")
             self.known_uuids[first_phone] = msg.sender_uuid
             self._save_known_uuids()
             print(f"📝 First contact — saved UUID: {msg.sender_uuid[:8]}...", flush=True)
@@ -145,7 +152,7 @@ class SignalTransport(Transport):
             # Transcribe
             segments, _ = self.whisper_model.transcribe(
                 temp_path,
-                language="de",  # TODO: from config.user.language
+                language="de",  # TODO: from config.human.language
                 beam_size=5,
             )
             
@@ -270,7 +277,9 @@ class SignalTransport(Transport):
         print("Signal Transport")
         print("=" * 50)
         print(f"Bot phone: {self.bot_phone}")
-        print(f"Allowed phones: {', '.join(self.user_phones)}")
+        print(f"Allowed: {len(self.allowed_phones)} contacts")
+        for phone, name in self.allowed_phones.items():
+            print(f"  • {name}: {phone}")
         print(f"Voice: {'✓' if self.whisper_model else '✗'}")
         print("=" * 50 + "\n")
         

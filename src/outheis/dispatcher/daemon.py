@@ -492,7 +492,7 @@ def _validate_paths(config: Config) -> list[str]:
     # Check vault paths if data agent is enabled
     data_config = config.agents.get("data")
     if data_config and data_config.enabled:
-        vaults = config.user.all_vaults()
+        vaults = config.human.all_vaults()
         if not vaults:
             errors.append("Data agent enabled but no vault configured")
         else:
@@ -504,7 +504,7 @@ def _validate_paths(config: Config) -> list[str]:
     # Check Agenda directory if agenda agent is enabled
     agenda_config = config.agents.get("agenda")
     if agenda_config and agenda_config.enabled:
-        primary_vault = config.user.primary_vault()
+        primary_vault = config.human.primary_vault()
         agenda_dir = primary_vault / "Agenda"
         if not agenda_dir.exists():
             errors.append(f"Agenda agent enabled but directory not found: {agenda_dir}")

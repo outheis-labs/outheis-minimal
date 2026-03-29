@@ -93,7 +93,7 @@ class PatternAgent(BaseAgent):
     def get_extraction_prompt(self) -> str:
         """Get specialized prompt for memory extraction."""
         config = load_config()
-        return EXTRACTION_PROMPT.format(language=config.user.language)
+        return EXTRACTION_PROMPT.format(language=config.human.language)
 
     def handle(self, msg: Message) -> Message | None:
         """Handle an incoming message (direct query to pattern agent)."""

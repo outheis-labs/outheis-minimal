@@ -45,13 +45,13 @@ class RelayAgent(BaseAgent):
         prompt_parts = [rules]
         
         # Add user identity
-        if config.user.name:
-            prompt_parts.append(f"# User\n\nThe user's name is {config.user.name}.")
+        if config.human.name:
+            prompt_parts.append(f"# User\n\nThe user's name is {config.human.name}.")
         
         if memory_context:
             prompt_parts.append(memory_context)
         
-        prompt_parts.append(f"\nDefault language: {config.user.language}")
+        prompt_parts.append(f"\nDefault language: {config.human.language}")
         
         return "\n\n".join(prompt_parts)
 

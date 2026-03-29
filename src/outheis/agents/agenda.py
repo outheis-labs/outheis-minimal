@@ -29,7 +29,7 @@ EXCHANGE_FILE = "Exchange.md"
 def get_agenda_dir() -> Path | None:
     """Get the Agenda directory from the primary vault."""
     config = load_config()
-    vault = config.user.primary_vault()
+    vault = config.human.primary_vault()
     if vault.exists():
         agenda_path = vault / AGENDA_DIR
         if agenda_path.exists():

@@ -68,8 +68,8 @@ def get_archive_dir() -> Path:
 # =============================================================================
 
 @dataclass
-class UserConfig:
-    """User configuration."""
+class HumanConfig:
+    """Human (administrator) configuration."""
     name: str = "Human"
     phone: list[str] = field(default_factory=list)  # One or more phone numbers
     language: str = "en"
@@ -94,11 +94,19 @@ class UserConfig:
 
 
 @dataclass
+class AllowedContact:
+    """An allowed Signal contact."""
+    name: str
+    phone: str
+
+
+@dataclass
 class SignalConfig:
     """Signal transport configuration."""
     enabled: bool = False
     bot_phone: str | None = None
     bot_name: str = "Ou"
+    allowed: list[AllowedContact] = field(default_factory=list)  # Additional allowed contacts
 
 
 @dataclass
@@ -157,7 +165,7 @@ class UpdatesConfig:
 @dataclass
 class Config:
     """Complete configuration."""
-    user: UserConfig = field(default_factory=UserConfig)
+    human: HumanConfig = field(default_factory=HumanConfig)
     signal: SignalConfig = field(default_factory=SignalConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
     agents: dict[str, AgentConfig] = field(default_factory=lambda: {
@@ -225,28 +233,34 @@ def load_config() -> Config:
         data = json.load(f)
 
     # User
-    user_data = data.get("user", {})
+    human_data = data.get("human", {})
     # Handle phone as string or list
-    phone_raw = user_data.get("phone", [])
+    phone_raw = human_data.get("phone", [])
     if isinstance(phone_raw, str):
         phone_list = [phone_raw] if phone_raw else []
     else:
         phone_list = phone_raw or []
     
-    user = UserConfig(
-        name=user_data.get("name", "Human"),
+    user = HumanConfig(
+        name=human_data.get("name", "Human"),
         phone=phone_list,
-        language=user_data.get("language", "en"),
-        timezone=user_data.get("timezone", "Europe/Berlin"),
-        vault=user_data.get("vault", ["~/Documents/Vault"]),
+        language=human_data.get("language", "en"),
+        timezone=human_data.get("timezone", "Europe/Berlin"),
+        vault=human_data.get("vault", ["~/Documents/Vault"]),
     )
 
     # Signal
     signal_data = data.get("signal", {})
+    allowed_raw = signal_data.get("allowed", [])
+    allowed = [
+        AllowedContact(name=c.get("name", ""), phone=c.get("phone", ""))
+        for c in allowed_raw if isinstance(c, dict)
+    ]
     signal = SignalConfig(
         enabled=signal_data.get("enabled", False),
         bot_phone=signal_data.get("bot_phone"),
         bot_name=signal_data.get("bot_name", "Ou"),
+        allowed=allowed,
     )
 
     # LLM
@@ -298,11 +312,11 @@ def save_config(config: Config) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     data: dict[str, Any] = {
-        "user": {
-            "name": config.user.name,
-            "language": config.user.language,
-            "timezone": config.user.timezone,
-            "vault": config.user.vault,
+        "human": {
+            "name": config.human.name,
+            "language": config.human.language,
+            "timezone": config.human.timezone,
+            "vault": config.human.vault,
         },
         "llm": {
             "providers": {
@@ -338,8 +352,8 @@ def save_config(config: Config) -> None:
     }
 
     # User phone
-    if config.user.phone:
-        data["user"]["phone"] = config.user.phone
+    if config.human.phone:
+        data["user"]["phone"] = config.human.phone
 
     # Signal config
     if config.signal.enabled or config.signal.bot_phone:
