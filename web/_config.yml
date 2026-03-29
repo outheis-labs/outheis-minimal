@@ -1,7 +1,0 @@
-title: outheis
-description: A multi-agent AI assistant built on operating system principles
-defaults:
-  - scope:
-      path: ""
-    values:
-      layout: default
