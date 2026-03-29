@@ -49,32 +49,50 @@ class ScheduledTask:
     """A task scheduled to run at specific times."""
     name: str
     run: Callable[[], None]
-    hour: int  # 0-23
+    hour: int | None = None  # 0-23, or None for interval-based
     minute: int = 0
+    interval_minutes: int | None = None  # For interval-based scheduling
     last_run: datetime | None = None
     
     def next_run(self, now: datetime) -> datetime:
         """Calculate next run time."""
-        today_run = now.replace(hour=self.hour, minute=self.minute, second=0, microsecond=0)
-        if now >= today_run:
-            # Already passed today, schedule for tomorrow
-            return today_run + timedelta(days=1)
-        return today_run
+        if self.interval_minutes:
+            # Interval-based: run every N minutes
+            if self.last_run is None:
+                return now  # Run immediately first time
+            return self.last_run + timedelta(minutes=self.interval_minutes)
+        else:
+            # Time-based: run at specific hour:minute
+            today_run = now.replace(hour=self.hour, minute=self.minute, second=0, microsecond=0)
+            if now >= today_run:
+                # Already passed today, schedule for tomorrow
+                return today_run + timedelta(days=1)
+            return today_run
     
     def seconds_until_next(self, now: datetime) -> float:
         """Seconds until next scheduled run."""
-        return (self.next_run(now) - now).total_seconds()
+        next_time = self.next_run(now)
+        diff = (next_time - now).total_seconds()
+        return max(0, diff)
     
     def should_run(self, now: datetime) -> bool:
         """Check if task should run now."""
-        if self.last_run is None:
-            # Never run — check if we're at the scheduled time
-            return (now.hour == self.hour and now.minute == self.minute)
-        # Already ran today?
-        if self.last_run.date() == now.date():
-            return False
-        # Is it time?
-        return (now.hour == self.hour and now.minute >= self.minute)
+        if self.interval_minutes:
+            # Interval-based
+            if self.last_run is None:
+                return True  # Never run, run now
+            elapsed = (now - self.last_run).total_seconds() / 60
+            return elapsed >= self.interval_minutes
+        else:
+            # Time-based
+            if self.last_run is None:
+                # Never run — check if we're at the scheduled time
+                return (now.hour == self.hour and now.minute == self.minute)
+            # Already ran today?
+            if self.last_run.date() == now.date():
+                return False
+            # Is it time?
+            return (now.hour == self.hour and now.minute >= self.minute)
 
 
 @dataclass
@@ -86,9 +104,22 @@ class Scheduler:
     """
     tasks: list[ScheduledTask] = field(default_factory=list)
     
-    def add(self, name: str, run: Callable[[], None], hour: int, minute: int = 0) -> None:
+    def add(
+        self,
+        name: str,
+        run: Callable[[], None],
+        hour: int | None = None,
+        minute: int = 0,
+        interval_minutes: int | None = None,
+    ) -> None:
         """Add a scheduled task."""
-        self.tasks.append(ScheduledTask(name=name, run=run, hour=hour, minute=minute))
+        self.tasks.append(ScheduledTask(
+            name=name,
+            run=run,
+            hour=hour,
+            minute=minute,
+            interval_minutes=interval_minutes,
+        ))
     
     def seconds_until_next(self) -> float:
         """Seconds until next task needs to run."""
@@ -230,6 +261,13 @@ class Dispatcher:
             hour=5,
             minute=0,
         )
+        
+        # Action agent task runner: every 15 minutes
+        self.scheduler.add(
+            name="action_tasks",
+            run=self._run_action_tasks,
+            interval_minutes=15,
+        )
 
     def _run_pattern_agent(self) -> None:
         """Run Pattern agent scheduled reflection."""
@@ -247,6 +285,39 @@ class Dispatcher:
         """Rotate old messages to archive."""
         # TODO: Implement archive rotation
         pass
+
+    def _run_action_tasks(self) -> None:
+        """Run due action tasks."""
+        from outheis.agents.tasks import get_registry
+        
+        registry = get_registry()
+        due_tasks = registry.get_due_tasks()
+        
+        if not due_tasks:
+            return
+        
+        agent = self.get_agent("action")
+        if not agent:
+            return
+        
+        for task in due_tasks:
+            try:
+                result = task.execute()
+                registry.mark_completed(task)
+                
+                if result.success and task.target_agent == "agenda":
+                    # Send to agenda agent
+                    self._insert_to_agenda(task.format_for_agenda(result))
+                
+                print(f"Task '{task.name}' executed: {'✓' if result.success else '✗'}")
+            except Exception as e:
+                print(f"Task '{task.name}' failed: {e}")
+
+    def _insert_to_agenda(self, content: str) -> None:
+        """Insert content into Daily.md."""
+        agenda_agent = self.get_agent("agenda")
+        if agenda_agent and hasattr(agenda_agent, 'insert_to_daily'):
+            agenda_agent.insert_to_daily(content)
 
     def get_agent(self, name: str):
         """Get or create an agent instance."""
@@ -520,6 +591,7 @@ def start_daemon(foreground: bool = False) -> bool:
 def _validate_paths(config: Config) -> list[str]:
     """
     Validate vault and agenda paths.
+    Creates Agenda directory and files if missing.
     
     Returns list of errors for enabled agents that require paths.
     """
@@ -537,18 +609,32 @@ def _validate_paths(config: Config) -> list[str]:
                 # All vaults missing
                 errors.append(f"Data agent enabled but vault not found: {vaults[0]}")
     
-    # Check Agenda directory if agenda agent is enabled
+    # Check/create Agenda directory if agenda agent is enabled
     agenda_config = config.agents.get("agenda")
     if agenda_config and agenda_config.enabled:
         primary_vault = config.human.primary_vault()
-        agenda_dir = primary_vault / "Agenda"
-        if not agenda_dir.exists():
-            errors.append(f"Agenda agent enabled but directory not found: {agenda_dir}")
+        
+        if not primary_vault.exists():
+            errors.append(f"Agenda agent enabled but vault not found: {primary_vault}")
         else:
-            # Check for required files
-            for filename in ["Daily.md", "Inbox.md"]:
-                if not (agenda_dir / filename).exists():
-                    errors.append(f"Agenda file missing: {agenda_dir / filename}")
+            agenda_dir = primary_vault / "Agenda"
+            
+            # Create Agenda directory if missing
+            if not agenda_dir.exists():
+                print(f"  ⚠ Agenda directory not found, creating: {agenda_dir}")
+                agenda_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create required files if missing
+            agenda_files = {
+                "Daily.md": "# Daily\n\n## Today\n\n## Tomorrow\n",
+                "Inbox.md": "# Inbox\n\n",
+            }
+            
+            for filename, default_content in agenda_files.items():
+                filepath = agenda_dir / filename
+                if not filepath.exists():
+                    print(f"  ⚠ Creating: {filepath}")
+                    filepath.write_text(default_content, encoding="utf-8")
     
     return errors
 

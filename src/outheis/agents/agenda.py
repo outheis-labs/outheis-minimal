@@ -187,6 +187,51 @@ Respond helpfully based on the agenda information. If the user wants to modify t
                 reply_to=msg.id,
             )
 
+    def insert_to_daily(self, content: str, section: str | None = None) -> bool:
+        """
+        Insert content into Daily.md.
+        
+        Args:
+            content: Markdown content to insert
+            section: Optional section header to insert under (e.g., "## News")
+                    If None, appends at end of file
+        
+        Returns:
+            True if successful
+        """
+        daily = read_agenda_file(DAILY_FILE)
+        if daily is None:
+            return False
+        
+        # Add timestamp
+        timestamp = datetime.now().strftime("%H:%M")
+        timestamped_content = f"\n<!-- {timestamp} -->\n{content}\n"
+        
+        if section:
+            # Insert under specific section
+            if section in daily:
+                # Find section and insert after header
+                lines = daily.split("\n")
+                new_lines = []
+                inserted = False
+                for line in lines:
+                    new_lines.append(line)
+                    if not inserted and line.strip() == section:
+                        new_lines.append(timestamped_content)
+                        inserted = True
+                if not inserted:
+                    # Section not found, append
+                    new_lines.append(f"\n{section}\n{timestamped_content}")
+                daily = "\n".join(new_lines)
+            else:
+                # Section doesn't exist, create it
+                daily += f"\n{section}\n{timestamped_content}"
+        else:
+            # Append at end
+            daily += timestamped_content
+        
+        return write_agenda_file(DAILY_FILE, daily)
+
 
 # =============================================================================
 # FACTORY
