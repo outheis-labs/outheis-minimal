@@ -114,6 +114,14 @@ class SignalTransport(Transport):
             print(f"📝 Learned and saved user UUID: {msg.sender_uuid[:8]}...", flush=True)
             return True
         
+        # First-time setup: no UUID known yet, accept first message and save
+        # This is safe because config requires user.phone to be set
+        if not self.user_uuid and msg.sender_uuid:
+            print(f"📝 First contact — saving UUID: {msg.sender_uuid[:8]}...", flush=True)
+            self.user_uuid = msg.sender_uuid
+            self._save_user_uuid(msg.sender_uuid)
+            return True
+        
         return False
     
     def _transcribe_voice(self, audio_data: bytes) -> str | None:
