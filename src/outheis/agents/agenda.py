@@ -139,7 +139,7 @@ Respond helpfully based on the agenda information. If the user wants to modify t
         from outheis.core.llm import call_llm
         
         response = call_llm(
-            model="capable",
+            model=self.model_alias,
             system=self.get_system_prompt(),
             messages=[{"role": "user", "content": user_prompt}],
             max_tokens=1000,
@@ -192,6 +192,6 @@ Respond helpfully based on the agenda information. If the user wants to modify t
 # FACTORY
 # =============================================================================
 
-def create_agenda_agent() -> AgendaAgent:
+def create_agenda_agent(model_alias: str = "capable") -> AgendaAgent:
     """Create an agenda agent instance."""
-    return AgendaAgent()
+    return AgendaAgent(model_alias=model_alias)

@@ -28,6 +28,7 @@ class BaseAgent(ABC):
     """
 
     name: AgentId
+    model_alias: str = "capable"  # Model alias from config ("fast", "capable", etc.)
     queue_path: Path = field(default_factory=get_messages_path)
 
     @abstractmethod

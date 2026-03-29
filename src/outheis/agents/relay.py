@@ -196,11 +196,11 @@ class RelayAgent(BaseAgent):
                 messages.append({"role": "assistant", "content": msg.payload.get("text", "")})
         messages.append({"role": "user", "content": text})
         
-        # First call - fast tool decision
+        # First call - tool decision
         from outheis.core.llm import call_llm
         
         response = call_llm(
-            model="fast",
+            model=self.model_alias,
             system=self.get_system_prompt(),
             messages=messages,
             tools=tools,
@@ -245,7 +245,7 @@ class RelayAgent(BaseAgent):
             messages.append({"role": "user", "content": tool_results})
             
             final_response = call_llm(
-                model="fast",
+                model=self.model_alias,
                 system=self.get_system_prompt(),
                 messages=messages,
                 tools=tools,
@@ -269,6 +269,6 @@ class RelayAgent(BaseAgent):
 # FACTORY
 # =============================================================================
 
-def create_relay_agent() -> RelayAgent:
+def create_relay_agent(model_alias: str = "fast") -> RelayAgent:
     """Create a relay agent instance."""
-    return RelayAgent()
+    return RelayAgent(model_alias=model_alias)

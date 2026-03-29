@@ -48,6 +48,6 @@ class ActionAgent(BaseAgent):
 # FACTORY
 # =============================================================================
 
-def create_action_agent() -> ActionAgent:
+def create_action_agent(model_alias: str = "capable") -> ActionAgent:
     """Create an action agent instance."""
-    return ActionAgent()
+    return ActionAgent(model_alias=model_alias)

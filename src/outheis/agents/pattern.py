@@ -204,7 +204,7 @@ Extract any NEW information worth remembering. Respond in JSON only."""
             from outheis.core.llm import call_llm
             
             response = call_llm(
-                model="capable",
+                model=self.model_alias,
                 system=self.get_extraction_prompt(),
                 messages=[{"role": "user", "content": user_prompt}],
                 max_tokens=1000,
@@ -245,6 +245,6 @@ Extract any NEW information worth remembering. Respond in JSON only."""
 # FACTORY
 # =============================================================================
 
-def create_pattern_agent() -> PatternAgent:
+def create_pattern_agent(model_alias: str = "capable") -> PatternAgent:
     """Create a pattern agent instance."""
-    return PatternAgent()
+    return PatternAgent(model_alias=model_alias)

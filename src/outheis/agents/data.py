@@ -152,7 +152,7 @@ Based on the vault contents above, answer the user's query. If the information i
             from outheis.core.llm import call_llm
             
             response = call_llm(
-                model="capable",
+                model=self.model_alias,
                 system=self.get_system_prompt(),
                 messages=[{"role": "user", "content": user_content}],
                 max_tokens=1024,
@@ -200,7 +200,7 @@ Based on the vault search results above, answer the user's query. If nothing rel
             from outheis.core.llm import call_llm
             
             response = call_llm(
-                model="capable",
+                model=self.model_alias,
                 system=self.get_system_prompt(),
                 messages=[{"role": "user", "content": user_content}],
                 max_tokens=1024,
@@ -238,6 +238,6 @@ Based on the vault search results above, answer the user's query. If nothing rel
 # FACTORY
 # =============================================================================
 
-def create_data_agent() -> DataAgent:
+def create_data_agent(model_alias: str = "capable") -> DataAgent:
     """Create a data agent instance."""
-    return DataAgent()
+    return DataAgent(model_alias=model_alias)

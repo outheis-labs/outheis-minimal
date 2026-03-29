@@ -247,16 +247,24 @@ class Dispatcher:
     def get_agent(self, name: str):
         """Get or create an agent instance."""
         if name not in self._agents:
+            # Get agent-specific config
+            agent_config = self.config.agents.get(name)
+            model_alias = agent_config.model if agent_config else "capable"
+            
+            # Check if agent is enabled
+            if agent_config and not agent_config.enabled:
+                return None
+            
             if name == "relay":
-                self._agents[name] = create_relay_agent()
+                self._agents[name] = create_relay_agent(model_alias=model_alias)
             elif name == "data":
-                self._agents[name] = create_data_agent()
+                self._agents[name] = create_data_agent(model_alias=model_alias)
             elif name == "agenda":
-                self._agents[name] = create_agenda_agent()
+                self._agents[name] = create_agenda_agent(model_alias=model_alias)
             elif name == "action":
-                self._agents[name] = create_action_agent()
+                self._agents[name] = create_action_agent(model_alias=model_alias)
             elif name == "pattern":
-                self._agents[name] = create_pattern_agent()
+                self._agents[name] = create_pattern_agent(model_alias=model_alias)
             else:
                 return None
         return self._agents[name]
