@@ -160,9 +160,9 @@ def send(
     msg = transport.send(message)
 
     # Wait for response with progress indicator
-    # outheis breathing circle: ○ → ◎ → ◦ → · → ◦ → ◎
+    # Braille column animation: ⡀ → ⡄ → ⡆ → ⡇ → ⣇ → ⣧ → ⣷ → ⣿ → ⣾ → ⣼ → ⣸ → ⣰ → ⣠ → ⣀ → ⢀ → (space) → repeat
     start = time.time()
-    spinner = ['○', '◎', '◦', '·', '◦', '◎']
+    spinner = ['⡀', '⡄', '⡆', '⡇', '⣇', '⣧', '⣷', '⣿', '⣾', '⣼', '⣸', '⣰', '⣠', '⣀', '⢀', ' ']
     spinner_idx = 0
     
     while time.time() - start < timeout:
