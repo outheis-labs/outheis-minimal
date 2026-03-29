@@ -1,14 +1,15 @@
 {
   "user": {
-    "name": "User",
+    "name": "Human",
     "phone": null,
     "language": "en",
-    "timezone": "UTC",
+    "timezone": "Europe/Berlin",
     "vault": ["~/Documents/Vault"]
   },
   "signal": {
     "enabled": false,
-    "bot_phone": null
+    "bot_phone": null,
+    "bot_name": "Ou"
   },
   "llm": {
     "providers": {

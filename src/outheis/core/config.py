@@ -70,10 +70,10 @@ def get_archive_dir() -> Path:
 @dataclass
 class UserConfig:
     """User configuration."""
-    name: str = "User"
+    name: str = "Human"
     phone: str | None = None
     language: str = "en"
-    timezone: str = "UTC"
+    timezone: str = "Europe/Berlin"
     vault: list[str] = field(default_factory=lambda: ["~/Documents/Vault"])
 
     def primary_vault(self) -> Path:
@@ -98,6 +98,7 @@ class SignalConfig:
     """Signal transport configuration."""
     enabled: bool = False
     bot_phone: str | None = None
+    bot_name: str = "Ou"
 
 
 @dataclass
@@ -238,6 +239,7 @@ def load_config() -> Config:
     signal = SignalConfig(
         enabled=signal_data.get("enabled", False),
         bot_phone=signal_data.get("bot_phone"),
+        bot_name=signal_data.get("bot_name", "Ou"),
     )
 
     # LLM
@@ -334,7 +336,10 @@ def save_config(config: Config) -> None:
 
     # Signal config
     if config.signal.enabled or config.signal.bot_phone:
-        data["signal"] = {"enabled": config.signal.enabled}
+        data["signal"] = {
+            "enabled": config.signal.enabled,
+            "bot_name": config.signal.bot_name,
+        }
         if config.signal.bot_phone:
             data["signal"]["bot_phone"] = config.signal.bot_phone
 
