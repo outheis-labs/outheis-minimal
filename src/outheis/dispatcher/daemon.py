@@ -500,9 +500,14 @@ def start_daemon(foreground: bool = False) -> bool:
                 env=env,
             )
         
-        # Wait briefly and check if started
-        time.sleep(1.0)
-        child_pid = read_pid()
+        # Wait for PID file with retries
+        child_pid = None
+        for _ in range(10):  # Up to 5 seconds
+            time.sleep(0.5)
+            child_pid = read_pid()
+            if child_pid:
+                break
+        
         if child_pid:
             print(f"Dispatcher started (PID {child_pid})")
             print(f"Log: {log_path}")
