@@ -2,7 +2,6 @@
   "user": {
     "name": "Human",
     "phone": null,
-    "uuid": null,
     "language": "en",
     "timezone": "Europe/Berlin",
     "vault": ["~/Documents/Vault"]

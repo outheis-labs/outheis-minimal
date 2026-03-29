@@ -130,6 +130,9 @@ class SignalRPC:
         message_text = data_msg.get("message") or ""
         timestamp = envelope.get("timestamp", 0)
         
+        # Debug: print envelope keys
+        print(f"📨 Envelope: uuid={sender_uuid[:8] if sender_uuid else 'None'}... phone={sender_phone} name={sender_name}", flush=True)
+        
         # Check for voice message
         attachments = data_msg.get("attachments", [])
         is_voice = any(

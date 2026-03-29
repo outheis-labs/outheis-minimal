@@ -72,7 +72,6 @@ class UserConfig:
     """User configuration."""
     name: str = "Human"
     phone: str | None = None
-    uuid: str | None = None  # Signal UUID (for sealed sender)
     language: str = "en"
     timezone: str = "Europe/Berlin"
     vault: list[str] = field(default_factory=lambda: ["~/Documents/Vault"])
@@ -230,7 +229,6 @@ def load_config() -> Config:
     user = UserConfig(
         name=user_data.get("name", "Human"),
         phone=user_data.get("phone"),
-        uuid=user_data.get("uuid"),
         language=user_data.get("language", "en"),
         timezone=user_data.get("timezone", "Europe/Berlin"),
         vault=user_data.get("vault", ["~/Documents/Vault"]),

@@ -44,7 +44,9 @@ class SignalTransport(Transport):
         
         self.bot_phone = config.signal.bot_phone
         self.user_phone = config.user.phone
-        self.user_uuid: str | None = None  # Learned on first message
+        
+        # Load learned UUID from persistent storage
+        self.user_uuid: str | None = self._load_user_uuid()
         
         self.rpc = SignalRPC(self.bot_phone)
         self.queue_path = get_messages_path()
@@ -61,6 +63,34 @@ class SignalTransport(Transport):
         self.whisper_model = None
         self._init_whisper()
     
+    def _get_signal_state_path(self) -> Path:
+        """Get path to signal state file."""
+        from outheis.core.config import get_human_dir
+        return get_human_dir() / "signal.json"
+    
+    def _load_user_uuid(self) -> str | None:
+        """Load learned user UUID from persistent storage."""
+        import json
+        path = self._get_signal_state_path()
+        if path.exists():
+            try:
+                data = json.loads(path.read_text())
+                uuid = data.get("user_uuid")
+                if uuid:
+                    print(f"📝 Loaded user UUID: {uuid[:8]}...", flush=True)
+                return uuid
+            except Exception:
+                pass
+        return None
+    
+    def _save_user_uuid(self, uuid: str) -> None:
+        """Save learned user UUID to persistent storage."""
+        import json
+        path = self._get_signal_state_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = {"user_uuid": uuid, "user_phone": self.user_phone}
+        path.write_text(json.dumps(data, indent=2))
+    
     def _init_whisper(self) -> None:
         """Initialize Whisper for voice transcription (optional)."""
         try:
@@ -73,19 +103,15 @@ class SignalTransport(Transport):
     
     def _is_allowed(self, msg: SignalMessage) -> bool:
         """Check if sender is allowed (single-user mode: only user.phone/uuid)."""
-        # Check UUID from config
-        if self.config.user.uuid and msg.sender_uuid == self.config.user.uuid:
-            return True
-        
         # Check learned UUID
         if self.user_uuid and msg.sender_uuid == self.user_uuid:
             return True
         
-        # Check phone number
+        # Check phone number — learn and save UUID
         if msg.sender_phone and msg.sender_phone == self.user_phone:
-            # Learn UUID for future
             self.user_uuid = msg.sender_uuid
-            print(f"📝 Learned user UUID: {msg.sender_uuid}", flush=True)
+            self._save_user_uuid(msg.sender_uuid)
+            print(f"📝 Learned and saved user UUID: {msg.sender_uuid[:8]}...", flush=True)
             return True
         
         return False
