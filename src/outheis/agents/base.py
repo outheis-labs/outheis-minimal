@@ -93,6 +93,25 @@ class BaseAgent(ABC):
         """Get recent messages in a conversation for context."""
         messages = read_conversation(self.queue_path, conversation_id)
         return messages[-max_messages:]
+    
+    def get_session_context(self, max_messages: int = 50) -> list[Message]:
+        """
+        Get recent messages across all conversations for session continuity.
+        
+        This provides context from previous sessions, allowing the user to
+        continue conversations after restart.
+        """
+        from outheis.core.queue import read_last_n
+        
+        all_recent = read_last_n(self.queue_path, max_messages * 2)
+        
+        # Filter to user messages and relay responses
+        relevant = [
+            msg for msg in all_recent
+            if msg.from_user or (msg.from_agent == "relay" and msg.to == "transport")
+        ]
+        
+        return relevant[-max_messages:]
 
     def log_session_note(
         self,

@@ -246,12 +246,19 @@ class Dispatcher:
             minute=0,
         )
         
-        # Index rebuild: 04:30
+        # Index rebuild: 04:30 (full rebuild)
         self.scheduler.add(
             name="index_rebuild",
             run=self._run_index_rebuild,
             hour=4,
             minute=30,
+        )
+        
+        # Index update: every 5 minutes (incremental)
+        self.scheduler.add(
+            name="index_update",
+            run=self._run_index_update,
+            interval_minutes=5,
         )
         
         # Archive rotation: 05:00
@@ -276,10 +283,26 @@ class Dispatcher:
             agent.run_scheduled()
 
     def _run_index_rebuild(self) -> None:
-        """Rebuild vault search indices."""
+        """Rebuild vault search indices (full rebuild)."""
         agent = self.get_agent("data")
         if agent and hasattr(agent, 'rebuild_indices'):
-            agent.rebuild_indices()
+            results = agent.rebuild_indices()
+            print(f"Index rebuild: {results}")
+
+    def _run_index_update(self) -> None:
+        """Update vault search indices (incremental)."""
+        agent = self.get_agent("data")
+        if not agent:
+            return
+        
+        # Get indices and update each
+        try:
+            for index in agent._get_indices():
+                added, updated, removed = index.update()
+                if added or updated or removed:
+                    print(f"Index update [{index.vault_root.name}]: +{added} ~{updated} -{removed}")
+        except Exception as e:
+            print(f"Index update failed: {e}")
 
     def _run_archive_rotation(self) -> None:
         """Rotate old messages to archive."""

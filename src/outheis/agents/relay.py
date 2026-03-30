@@ -106,7 +106,12 @@ class RelayAgent(BaseAgent):
             response_text = self._handle_with_agenda_agent(text, msg)
         else:
             # Let Relay handle with tools - it decides when to delegate
-            context = self.get_conversation_context(msg.conversation_id)
+            # Use session context for continuity across restarts
+            session_context = self.get_session_context(max_messages=30)
+            # Also get conversation-specific context
+            conv_context = self.get_conversation_context(msg.conversation_id)
+            # Merge: session context first, then conversation (to prioritize recent)
+            context = self._merge_contexts(session_context, conv_context)
             response_text = self._generate_response(text, context, msg)
 
         return self.respond(
@@ -135,6 +140,36 @@ class RelayAgent(BaseAgent):
             return "No response from agenda agent."
         except Exception as e:
             return f"I tried to check your schedule but encountered an error: {e}"
+    
+    def _merge_contexts(
+        self,
+        session_context: list[Message],
+        conv_context: list[Message],
+    ) -> list[Message]:
+        """
+        Merge session context with conversation context.
+        
+        Removes duplicates, keeps conversation messages at the end
+        for recency, limits total to avoid token bloat.
+        """
+        seen_ids = set()
+        merged = []
+        
+        # Add session context first (older)
+        for msg in session_context:
+            if msg.id not in seen_ids:
+                seen_ids.add(msg.id)
+                merged.append(msg)
+        
+        # Add conversation context (newer, overwrites order)
+        for msg in conv_context:
+            if msg.id not in seen_ids:
+                seen_ids.add(msg.id)
+                merged.append(msg)
+        
+        # Sort by timestamp and limit
+        merged.sort(key=lambda m: m.created_at)
+        return merged[-20:]  # Keep last 20 for context
 
     def _generate_response(
         self,
