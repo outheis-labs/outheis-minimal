@@ -62,15 +62,32 @@ class DataAgent(BaseAgent):
             key = str(vault_path)
             if key not in self._indices:
                 self._indices[key] = create_index(vault_path)
-                # Update index on first access
+                # Full update on first access
                 self._indices[key].update()
             
             indices.append(self._indices[key])
         
         return indices
     
+    def _ensure_index_fresh(self) -> None:
+        """
+        Ensure indices are up-to-date before search.
+        
+        Called before every search to pick up new/changed files.
+        Uses incremental update (fast).
+        """
+        for index in self._get_indices():
+            added, updated, removed = index.update()
+            # Only log if something changed
+            if added or updated or removed:
+                import sys
+                print(f"[index] {index.vault_root.name}: +{added} ~{updated} -{removed}", file=sys.stderr)
+    
     def search(self, query: str, limit: int = 10) -> list[tuple[SearchIndex, any]]:
         """Search across all vaults."""
+        # Ensure index is fresh before searching
+        self._ensure_index_fresh()
+        
         results = []
         for index in self._get_indices():
             for entry in index.search(query, limit=limit):

@@ -254,13 +254,6 @@ class Dispatcher:
             minute=30,
         )
         
-        # Index update: every 5 minutes (incremental)
-        self.scheduler.add(
-            name="index_update",
-            run=self._run_index_update,
-            interval_minutes=5,
-        )
-        
         # Archive rotation: 05:00
         self.scheduler.add(
             name="archive_rotation",
@@ -274,6 +267,13 @@ class Dispatcher:
             name="action_tasks",
             run=self._run_action_tasks,
             interval_minutes=15,
+        )
+        
+        # Session summary: every 6 hours
+        self.scheduler.add(
+            name="session_summary",
+            run=self._run_session_summary,
+            interval_minutes=360,  # 6 hours
         )
 
     def _run_pattern_agent(self) -> None:
@@ -289,20 +289,17 @@ class Dispatcher:
             results = agent.rebuild_indices()
             print(f"Index rebuild: {results}")
 
-    def _run_index_update(self) -> None:
-        """Update vault search indices (incremental)."""
-        agent = self.get_agent("data")
-        if not agent:
-            return
-        
-        # Get indices and update each
-        try:
-            for index in agent._get_indices():
-                added, updated, removed = index.update()
-                if added or updated or removed:
-                    print(f"Index update [{index.vault_root.name}]: +{added} ~{updated} -{removed}")
-        except Exception as e:
-            print(f"Index update failed: {e}")
+    def _run_session_summary(self) -> None:
+        """Create session summary for memory persistence."""
+        # Run pattern agent to extract insights
+        agent = self.get_agent("pattern")
+        if agent:
+            try:
+                count = agent.run_scheduled()
+                if count:
+                    print(f"Session summary: extracted {count} memory entries")
+            except Exception as e:
+                print(f"Session summary failed: {e}")
 
     def _run_archive_rotation(self) -> None:
         """Rotate old messages to archive."""

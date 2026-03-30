@@ -874,5 +874,101 @@ def task_show(
         typer.echo(task.to_directive_md())
 
 
+# =============================================================================
+# MEMORY COMMANDS
+# =============================================================================
+
+memory_app = typer.Typer(help="Manage persistent memory")
+app.add_typer(memory_app, name="memory")
+
+
+@memory_app.command("show")
+def memory_show() -> None:
+    """Show all memory entries."""
+    from outheis.core.memory import get_memory_store
+    
+    store = get_memory_store()
+    all_memory = store.get_all()
+    
+    for memory_type in ["user", "feedback", "context"]:
+        entries = all_memory.get(memory_type, [])
+        typer.echo(f"\n## {memory_type.title()} ({len(entries)} entries)")
+        
+        if not entries:
+            typer.echo("  (none)")
+            continue
+        
+        for i, entry in enumerate(entries):
+            explicit = "!" if entry.is_explicit else " "
+            typer.echo(f"  {i+1}. {explicit} {entry.content}")
+            if entry.decay_days:
+                typer.echo(f"      (expires in {entry.decay_days} days)")
+    
+    typer.echo()
+
+
+@memory_app.command("analyze")
+def memory_analyze() -> None:
+    """Analyze recent conversations and extract memory."""
+    from outheis.agents.pattern import create_pattern_agent
+    
+    typer.echo("Analyzing recent conversations...")
+    
+    agent = create_pattern_agent()
+    count = agent.run_scheduled()
+    
+    if count:
+        typer.echo(f"✓ Extracted {count} new memory entries")
+    else:
+        typer.echo("No new information to extract")
+
+
+@memory_app.command("add")
+def memory_add(
+    content: str = typer.Argument(..., help="Memory content"),
+    memory_type: str = typer.Option("user", "--type", "-t", help="Memory type: user, feedback, context"),
+) -> None:
+    """Add a memory entry manually."""
+    from outheis.core.memory import get_memory_store, MemoryType
+    
+    if memory_type not in ["user", "feedback", "context"]:
+        typer.echo(f"Invalid type: {memory_type}. Use: user, feedback, context")
+        raise typer.Exit(1)
+    
+    store = get_memory_store()
+    store.add(content, memory_type, is_explicit=True)
+    
+    typer.echo(f"✓ Added to {memory_type}: {content}")
+
+
+@memory_app.command("clear")
+def memory_clear(
+    memory_type: str = typer.Argument(..., help="Memory type to clear: user, feedback, context, or all"),
+    force: bool = typer.Option(False, "--force", "-f", help="Don't ask for confirmation"),
+) -> None:
+    """Clear memory entries."""
+    from outheis.core.memory import get_memory_store
+    
+    if memory_type not in ["user", "feedback", "context", "all"]:
+        typer.echo(f"Invalid type: {memory_type}")
+        raise typer.Exit(1)
+    
+    if not force:
+        confirm = typer.confirm(f"Clear {memory_type} memory?")
+        if not confirm:
+            typer.echo("Cancelled.")
+            raise typer.Exit(0)
+    
+    store = get_memory_store()
+    
+    if memory_type == "all":
+        for mt in ["user", "feedback", "context"]:
+            store.clear(mt)
+        typer.echo("✓ All memory cleared")
+    else:
+        store.clear(memory_type)
+        typer.echo(f"✓ {memory_type} memory cleared")
+
+
 if __name__ == "__main__":
     app()
